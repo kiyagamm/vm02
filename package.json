@@ -1,0 +1,9 @@
+{
+  "name": "vm-management-system",
+  "version": "1.0.0",
+  "description": "Virtual machine management system",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

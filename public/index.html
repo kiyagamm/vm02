@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VM Management System</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="background-glow"></div>
+
+    <main class="layout" id="login-shell">
+      <section class="card login-card">
+        <p class="eyebrow">Secure Access</p>
+        <h1>VM Management Login</h1>
+        <p class="subcopy">Sign in with one of the default accounts to continue.</p>
+
+        <form id="login-form">
+          <label>
+            Username
+            <input type="text" id="username" required />
+          </label>
+          <label>
+            Password
+            <input type="password" id="password" required />
+          </label>
+          <button type="submit">Sign In</button>
+        </form>
+
+        <p class="hint">Demo accounts: admin, operator, viewer</p>
+        <p class="error" id="login-error"></p>
+      </section>
+    </main>
+
+    <main class="layout hidden" id="app-shell">
+      <header class="topbar card">
+        <div>
+          <p class="eyebrow">Infrastructure Control</p>
+          <h1>Virtual Machine Management System</h1>
+          <p class="subcopy">Role-aware operations with full activity tracking.</p>
+        </div>
+        <div class="user-box">
+          <p id="whoami-name">-</p>
+          <button id="logout-btn" class="secondary">Logout</button>
+        </div>
+      </header>
+
+      <div class="workspace-layout">
+        <aside class="side-menu card">
+          <div class="brand-block">
+            <div class="brand-mark">VM</div>
+            <div class="brand-copy">
+              <strong>Control</strong>
+              <span>Portal</span>
+            </div>
+          </div>
+
+          <button type="button" class="nav-item active" data-target="dashboard">
+            <span class="nav-icon" aria-hidden="true">▣</span>
+            <span>Dashboard</span>
+          </button>
+          <button type="button" class="nav-item" data-target="inventory">
+            <span class="nav-icon" aria-hidden="true">◫</span>
+            <span>VMs</span>
+          </button>
+          <button type="button" class="nav-item hidden" id="nav-users" data-target="users">
+            <span class="nav-icon" aria-hidden="true">👥</span>
+            <span>Users</span>
+          </button>
+          <button type="button" class="nav-item" data-target="reports">
+            <span class="nav-icon" aria-hidden="true">▤</span>
+            <span>Reports</span>
+          </button>
+          <button type="button" class="nav-item hidden" id="nav-hypervisor-settings" data-target="hypervisor-settings">
+            <span class="nav-icon" aria-hidden="true">⚙</span>
+            <span>Hypervisor</span>
+          </button>
+        </aside>
+
+        <div class="workspace-main">
+          <section class="metrics" id="metrics-section">
+            <article class="card metric">
+              <h2>Total VMs</h2>
+              <p id="metric-total">0</p>
+            </article>
+            <article class="card metric ok">
+              <h2>Running</h2>
+              <p id="metric-running">0</p>
+            </article>
+            <article class="card metric warn">
+              <h2>Stopped</h2>
+              <p id="metric-stopped">0</p>
+            </article>
+            <article class="card metric danger">
+              <h2>Error</h2>
+              <p id="metric-error">0</p>
+            </article>
+          </section>
+
+          <section class="card users-section hidden" id="users-section">
+            <div class="toolbar">
+              <h2>User Management</h2>
+              <div class="toolbar-actions">
+                <button type="button" id="new-user-btn" class="secondary">New User</button>
+              </div>
+            </div>
+
+            <div class="user-summary-grid">
+              <article class="card user-stat-card">
+                <span>Total Users</span>
+                <strong id="user-stat-total">0</strong>
+              </article>
+              <article class="card user-stat-card active">
+                <span>Active</span>
+                <strong id="user-stat-active">0</strong>
+              </article>
+              <article class="card user-stat-card warn">
+                <span>Locked</span>
+                <strong id="user-stat-locked">0</strong>
+              </article>
+              <article class="card user-stat-card admin">
+                <span>Admins</span>
+                <strong id="user-stat-admins">0</strong>
+              </article>
+            </div>
+
+            <div class="users-grid">
+              <article class="card user-form-card">
+                <h3 id="user-form-title">Create User</h3>
+                <form id="user-form" class="user-form">
+                  <input type="hidden" id="user-id" />
+
+                  <label>
+                    Full Name
+                    <input type="text" id="user-name" required />
+                  </label>
+                  <label>
+                    Username
+                    <input type="text" id="user-username" required />
+                  </label>
+                  <label>
+                    Role
+                    <select id="user-role" required>
+                      <option value="admin">admin</option>
+                      <option value="operator">operator</option>
+                      <option value="viewer">viewer</option>
+                    </select>
+                  </label>
+                  <label>
+                    Password
+                    <input type="password" id="user-password" placeholder="Enter new password" />
+                  </label>
+                  <label>
+                    Allowed VM IDs
+                    <input type="text" id="user-allowed-vm-ids" placeholder="101, 102, 103" />
+                  </label>
+
+                  <div class="form-actions">
+                    <button type="submit">Save User</button>
+                    <button type="button" id="cancel-user-form" class="secondary">Cancel</button>
+                  </div>
+                </form>
+              </article>
+
+              <article class="card table-card user-table-card">
+                <div class="toolbar compact-toolbar">
+                  <h3>Account Monitor</h3>
+                </div>
+                <div class="table-wrap user-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th>Failed Logins</th>
+                        <th>Allowed VMs</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="user-table-body"></tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="card report-card hidden" id="report-card">
+            <div class="toolbar">
+              <div class="report-title-wrap">
+                <h2 id="report-main-title">System Utilization & Provisioning Report</h2>
+                <span id="report-title-meta" class="report-title-meta"></span>
+              </div>
+              <div class="report-actions">
+                <button type="button" id="print-report-btn" class="secondary">Download PDF</button>
+              </div>
+            </div>
+
+            <div class="report-overview">
+              <article class="report-summary-box">
+                <span class="eyebrow">CPU Utilization</span>
+                <strong id="report-cpu-used">0%</strong>
+                <small id="report-cpu-details">0 cores used / 0 total</small>
+              </article>
+              <article class="report-summary-box">
+                <span class="eyebrow">RAM Utilization</span>
+                <strong id="report-ram-used">0%</strong>
+                <small id="report-ram-details">0 GB used / 0 GB total</small>
+              </article>
+              <article class="report-summary-box">
+                <span class="eyebrow">Disk Utilization</span>
+                <strong id="report-disk-used">0%</strong>
+                <small id="report-disk-details">0 GB used / 0 GB total</small>
+              </article>
+            </div>
+
+            <div class="report-grid">
+              <article class="report-panel">
+                <h3>Resource Remaining for Utilization</h3>
+                <div class="resource-list">
+                  <div class="resource-row">
+                    <span>CPU</span>
+                    <strong id="report-resource-cpu">0 cores left</strong>
+                  </div>
+                  <div class="resource-row">
+                    <span>RAM</span>
+                    <strong id="report-resource-ram">0 GB left</strong>
+                  </div>
+                  <div class="resource-row">
+                    <span>Disk</span>
+                    <strong id="report-resource-disk">0 GB left</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article class="report-panel">
+                <h3>Who Has Used What</h3>
+                <div class="table-wrap report-table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Owner</th>
+                        <th>VMs</th>
+                        <th>CPU</th>
+                        <th>RAM</th>
+                        <th>Disk</th>
+                      </tr>
+                    </thead>
+                    <tbody id="report-owner-table-body"></tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+
+            <article class="report-panel report-vm-panel">
+              <h3>Current VM Provisioning Report</h3>
+              <div class="table-wrap report-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>VM</th>
+                      <th>Owner</th>
+                      <th>Hypervisor</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th>CPU</th>
+                      <th>RAM</th>
+                      <th>Disk</th>
+                    </tr>
+                  </thead>
+                  <tbody id="report-vm-table-body"></tbody>
+                </table>
+              </div>
+            </article>
+          </section>
+
+      <section class="card monitor-card hidden" id="monitor-card">
+        <div class="toolbar">
+          <h2 id="monitor-title">Hypervisor Live Monitor</h2>
+          <div class="monitor-toolbar-right">
+            <span class="muted" id="monitor-updated-at">Waiting for telemetry...</span>
+            <button id="refresh-monitor-btn" class="secondary">Refresh</button>
+          </div>
+        </div>
+
+        <div class="monitor-grid" id="monitor-host-grid">
+          <article class="monitor-metric">
+            <h3 id="host-cpu-label">Host CPU</h3>
+            <p id="host-cpu">0%</p>
+          </article>
+          <article class="monitor-metric">
+            <h3 id="host-ram-label">Host RAM</h3>
+            <p id="host-ram">0%</p>
+          </article>
+          <article class="monitor-metric">
+            <h3 id="host-disk-label">Host Disk</h3>
+            <p id="host-disk">0%</p>
+          </article>
+          <article class="monitor-metric">
+            <h3 id="host-net-in-label">Inbound Net</h3>
+            <p id="host-net-in">0 Mbps</p>
+          </article>
+          <article class="monitor-metric">
+            <h3 id="host-net-out-label">Outbound Net</h3>
+            <p id="host-net-out">0 Mbps</p>
+          </article>
+        </div>
+
+        <p class="muted monitor-note" id="monitor-scope-note"></p>
+
+        <section class="host-capacity-grid" id="host-capacity-grid">
+          <article class="card capacity-card">
+            <h3 id="cpu-capacity-label">Host CPU Capacity</h3>
+            <div class="pie-chart" id="cpu-pie" style="--used: 0%;">
+              <span class="pie-label" id="cpu-pie-label">0%</span>
+            </div>
+            <p id="cpu-used-cores">Used: 0 cores</p>
+            <p id="cpu-free-cores">Free: 0 cores</p>
+            <p class="muted" id="cpu-total-cores">Total: 0 cores</p>
+          </article>
+
+          <article class="card capacity-card">
+            <h3 id="ram-capacity-label">Host RAM Capacity</h3>
+            <div class="pie-chart" id="ram-pie" style="--used: 0%;">
+              <span class="pie-label" id="ram-pie-label">0%</span>
+            </div>
+            <p id="ram-used">Used: 0 GB</p>
+            <p id="ram-free">Free: 0 GB</p>
+            <p class="muted" id="ram-total">Total: 0 GB</p>
+          </article>
+
+          <article class="card capacity-card">
+            <h3 id="disk-capacity-label">Host Disk Capacity</h3>
+            <div class="pie-chart" id="disk-pie" style="--used: 0%;">
+              <span class="pie-label" id="disk-pie-label">0%</span>
+            </div>
+            <p id="disk-used">Used: 0 GB</p>
+            <p id="disk-free">Free: 0 GB</p>
+            <p class="muted" id="disk-total">Total: 0 GB</p>
+            <p class="muted" id="disk-source-note">Source: -</p>
+          </article>
+        </section>
+
+        <div class="table-wrap monitor-vms-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>VM</th>
+                <th>Status</th>
+                <th>CPU</th>
+                <th>RAM</th>
+                <th>Disk</th>
+                <th>Read I/O</th>
+                <th>Write I/O</th>
+              </tr>
+            </thead>
+            <tbody id="monitor-vm-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="content-grid" id="inventory-section">
+        <article class="card table-card">
+          <div class="toolbar">
+            <h2>VM Inventory</h2>
+            <div class="filters">
+              <input type="search" id="search" placeholder="Search by VM, owner, IP..." />
+              <select id="status-filter">
+                <option value="">All Statuses</option>
+                <option value="running">running</option>
+                <option value="stopped">stopped</option>
+                <option value="restarting">restarting</option>
+                <option value="error">error</option>
+              </select>
+              <select id="provider-filter">
+                <option value="">All Hypervisors</option>
+                <option value="Proxmox">Proxmox</option>
+                <option value="XCP">XCP</option>
+              </select>
+              <button type="button" id="sync-vms-btn" class="secondary hidden">Sync from Hypervisor</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Hypervisor</th>
+                  <th>OS</th>
+                  <th>IP</th>
+                  <th>CPU</th>
+                  <th>RAM</th>
+                  <th>Disk</th>
+                  <th>Owner</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="vm-table-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <div class="modal-backdrop hidden" id="vm-edit-modal" aria-modal="true" role="dialog" aria-labelledby="vm-edit-title">
+        <div class="modal-panel card hypervisor-config-card">
+          <div class="toolbar modal-toolbar">
+            <h2 id="vm-edit-title">Edit VM</h2>
+            <div class="modal-actions">
+              <button type="button" id="close-vm-modal" class="secondary">Close</button>
+            </div>
+          </div>
+
+          <form id="vm-form">
+            <input type="hidden" id="vm-id" />
+
+            <label>
+              VM Name
+              <input type="text" id="name" required />
+            </label>
+            <label>
+              Hypervisor
+              <select id="provider" required>
+                <option value="">Select hypervisor</option>
+                <option value="Proxmox">Proxmox</option>
+                <option value="XCP">XCP</option>
+              </select>
+            </label>
+            <label>
+              Operating System
+              <select id="os" required>
+                <option value="">Select operating system</option>
+                <option value="Ubuntu 24.04">Ubuntu 24.04</option>
+                <option value="Ubuntu 22.04">Ubuntu 22.04</option>
+                <option value="Debian 12">Debian 12</option>
+                <option value="Rocky Linux 9">Rocky Linux 9</option>
+                <option value="AlmaLinux 9">AlmaLinux 9</option>
+                <option value="Windows Server 2022">Windows Server 2022</option>
+                <option value="Windows Server 2019">Windows Server 2019</option>
+                <option value="CentOS Stream 9">CentOS Stream 9</option>
+              </select>
+            </label>
+            <label>
+              Private IP
+              <input type="text" id="ip" placeholder="10.0.0.15" />
+            </label>
+            <label>
+              Status
+              <select id="status" required>
+                <option value="running">running</option>
+                <option value="stopped">stopped</option>
+                <option value="restarting">restarting</option>
+                <option value="error">error</option>
+              </select>
+            </label>
+
+            <div class="row-3">
+              <label>
+                CPU Cores
+                <input type="number" id="cpuCores" min="1" value="2" required />
+              </label>
+              <label>
+                RAM (GB)
+                <input type="number" id="ramGb" min="1" value="4" required />
+              </label>
+              <label>
+                Disk (GB)
+                <input type="number" id="diskGb" min="1" value="40" required />
+              </label>
+            </div>
+
+            <label>
+              Owner
+              <input type="text" id="owner" placeholder="Platform Team" />
+            </label>
+            <label>
+              User Email (optional: creates viewer account)
+              <input type="email" id="vm-access-email" placeholder="user@example.com" />
+            </label>
+            <label>
+              VM Portal Username (optional)
+              <input type="text" id="vm-access-username" placeholder="service-user" />
+            </label>
+            <label>
+              VM Portal Password (optional)
+              <input type="password" id="vm-access-password" placeholder="Create a password" />
+            </label>
+            <div class="form-actions">
+              <button type="submit">Save VM</button>
+              <button type="button" id="cancel-edit" class="secondary">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-backdrop hidden" id="hypervisor-settings-modal" aria-modal="true" role="dialog" aria-labelledby="hypervisor-settings-title">
+        <div class="modal-panel card hypervisor-config-card">
+          <div class="toolbar modal-toolbar">
+            <h2 id="hypervisor-settings-title">Hypervisor Settings (Admin)</h2>
+            <div class="modal-actions">
+              <button id="reload-hypervisor-config-btn" class="secondary">Reload</button>
+              <button type="button" id="close-hypervisor-modal" class="secondary">Close</button>
+            </div>
+          </div>
+
+          <form id="hypervisor-config-form" class="hypervisor-form">
+            <label class="inline-checkbox">
+              <input type="checkbox" id="hv-enabled" />
+              Enable Hypervisor Integration
+            </label>
+
+            <div class="row-3">
+              <label>
+                Type
+                <select id="hv-type">
+                  <option value="proxmox">proxmox</option>
+                </select>
+              </label>
+              <label>
+                Auth Mode
+                <select id="hv-auth-mode">
+                  <option value="apiToken">apiToken</option>
+                  <option value="password">password</option>
+                </select>
+              </label>
+              <label>
+                Poll Interval (ms)
+                <input type="number" id="hv-poll-interval" min="1000" step="500" value="5000" />
+              </label>
+            </div>
+
+            <label>
+              Proxmox Base URL
+              <input type="text" id="hv-base-url" placeholder="https://pve01.local:8006/api2/json" />
+            </label>
+
+            <div class="row-3">
+              <label>
+                Username
+                <input type="text" id="hv-username" placeholder="root@pam" />
+              </label>
+              <label>
+                Realm
+                <input type="text" id="hv-realm" placeholder="pam" />
+              </label>
+              <label>
+                Node (optional)
+                <input type="text" id="hv-node" placeholder="Leave empty for all nodes" />
+              </label>
+            </div>
+
+            <label>
+              Token ID
+              <input type="text" id="hv-token-id" placeholder="vm-monitor" />
+            </label>
+            <label>
+              Token Secret (leave blank to keep current)
+              <input type="password" id="hv-token-secret" placeholder="Enter only when rotating" />
+            </label>
+            <label>
+              Password (leave blank to keep current)
+              <input type="password" id="hv-password" placeholder="Used when auth mode is password" />
+            </label>
+
+            <label class="inline-checkbox">
+              <input type="checkbox" id="hv-insecure-tls" />
+              Allow Self-Signed TLS
+            </label>
+
+            <div class="form-actions">
+              <button type="submit">Save Settings</button>
+              <button type="button" id="test-hypervisor-btn" class="secondary">Test Connection</button>
+            </div>
+            <p class="muted" id="hypervisor-config-status"></p>
+          </form>
+        </div>
+      </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.0/jspdf.umd.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

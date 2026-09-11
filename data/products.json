@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1,
+    "name": "Logitech MX Anywhere 3",
+    "sku": "ACC-1001",
+    "category": "Mouse",
+    "stock_quantity": 12,
+    "price": 75000.0,
+    "reorder_level": 5,
+    "supplier": "Tech Supplies Ltd.",
+    "purchase_price": 55000.0
+  },
+  {
+    "id": 2,
+    "name": "Dell UltraSharp 27",
+    "sku": "ACC-1002",
+    "category": "Monitor",
+    "stock_quantity": 3,
+    "price": 329.99,
+    "reorder_level": 4,
+    "supplier": "Vision Systems",
+    "purchase_price": 0.0
+  },
+  {
+    "id": 3,
+    "name": "Anker 735 Charger",
+    "sku": "ACC-1003",
+    "category": "Charging",
+    "stock_quantity": 18,
+    "price": 109.99,
+    "reorder_level": 6,
+    "supplier": "PowerPoint Co.",
+    "purchase_price": 0.0
+  },
+  {
+    "id": 4,
+    "name": "JBL Noise Cancelling Headset",
+    "sku": "ACC-1004",
+    "category": "Audio",
+    "stock_quantity": 2,
+    "price": 149.99,
+    "reorder_level": 4,
+    "supplier": "AudioHub",
+    "purchase_price": 0.0
+  },
+  {
+    "id": 5,
+    "name": "Luxury Bags",
+    "sku": "LUX-1005",
+    "category": "Bags",
+    "stock_quantity": 2,
+    "price": 100000.0,
+    "reorder_level": 5,
+    "supplier": "abc",
+    "purchase_price": 0.0
+  }
+]

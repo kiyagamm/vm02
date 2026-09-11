@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "type": "proxmox",
+  "baseUrl": "https://154.72.206.212:8006/api2/json",
+  "insecureTls": true,
+  "authMode": "apiToken",
+  "username": "root@pam",
+  "tokenId": "vmservers",
+  "tokenSecret": "27aaabe1-38f7-4d16-9f08-d31a1160eb50",
+  "password": "",
+  "realm": "pam",
+  "node": "",
+  "pollIntervalMs": 5000
+}

@@ -1,0 +1,68 @@
+[
+  {
+    "id": 1,
+    "order_number": "SO-1001",
+    "customer_id": 1,
+    "customer_name": "Jane Doe",
+    "status": "paid",
+    "items": [
+      {
+        "product_id": 1,
+        "product_name": "Logitech MX Anywhere 3",
+        "sku": "ACC-1001",
+        "quantity": 2,
+        "unit_price": 0.0,
+        "line_total": 0.0
+      }
+    ],
+    "total": 0.0,
+    "notes": "test so",
+    "created_at": "2026-08-26T18:26:00.747955+00:00",
+    "confirmed_at": "2026-08-26T18:26:00.770964+00:00",
+    "paid_at": "2026-08-26T18:26:00.795483+00:00"
+  },
+  {
+    "id": 2,
+    "order_number": "SO-1002",
+    "customer_id": 1,
+    "customer_name": "Jane Doe",
+    "status": "paid",
+    "items": [
+      {
+        "product_id": 1,
+        "product_name": "Logitech MX Anywhere 3",
+        "sku": "ACC-1001",
+        "quantity": 2,
+        "unit_price": 0.0,
+        "line_total": 0.0
+      }
+    ],
+    "total": 0.0,
+    "notes": "test so",
+    "created_at": "2026-08-26T18:27:05.796692+00:00",
+    "confirmed_at": "2026-08-26T18:27:05.804221+00:00",
+    "paid_at": "2026-08-26T18:27:05.812493+00:00"
+  },
+  {
+    "id": 3,
+    "order_number": "SO-1003",
+    "customer_id": 1,
+    "customer_name": "Jane Doe",
+    "status": "confirmed",
+    "items": [
+      {
+        "product_id": 1,
+        "product_name": "Logitech MX Anywhere 3",
+        "sku": "ACC-1001",
+        "quantity": 2,
+        "unit_price": 0.0,
+        "line_total": 0.0
+      }
+    ],
+    "total": 0.0,
+    "notes": "test so",
+    "created_at": "2026-08-26T18:30:01.648160+00:00",
+    "confirmed_at": "2026-08-26T18:38:57.844528+00:00",
+    "paid_at": null
+  }
+]

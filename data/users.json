@@ -1,0 +1,40 @@
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "role": "admin",
+    "name": "System Admin",
+    "passwordHash": "639ef6c1aefded7b851c417ffb983f1f4aa655ab46a8eb5675e346f1f288daf2a5248b1458be947d903d1886f2446f60d642cdec68e51f1d8e43e08c321e15ae",
+    "passwordSalt": "e055208948a7f6ef4f6c1d055e348c17",
+    "failedLoginAttempts": 0,
+    "lockUntil": 0,
+    "lastLoginAt": "2026-09-10T07:20:41.150Z",
+    "allowedVmIds": []
+  },
+  {
+    "id": 2,
+    "username": "operator",
+    "role": "operator",
+    "name": "Operations User",
+    "passwordHash": "46672194fcea65a722d837bf56347bc3026b3d76256cc1941362f5592633c0f768d290ee4eedd12bfca9c077b28a8fdf3ff6abbae0ab4781902a7e221214c79e",
+    "passwordSalt": "090ac6726c9f91f448620ff5d150e05f",
+    "failedLoginAttempts": 0,
+    "lockUntil": 0,
+    "lastLoginAt": "2026-08-20T03:58:58.424Z",
+    "allowedVmIds": []
+  },
+  {
+    "id": 3,
+    "username": "viewer",
+    "role": "viewer",
+    "name": "Read-Only User",
+    "passwordHash": "61e7715644b9da32e9409b3c8890862cd9780850fb08a348b9223e4fa505ff96cdbcf547b6cb30c2854f3b85b820492ffd5b8db6292b86b2682790ecd93c741d",
+    "passwordSalt": "0b8eca6afbffc72591ed724a550ace79",
+    "failedLoginAttempts": 0,
+    "lockUntil": 0,
+    "lastLoginAt": "2026-08-20T04:05:52.007Z",
+    "allowedVmIds": [
+      101
+    ]
+  }
+]
