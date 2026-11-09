@@ -12,7 +12,7 @@ import {
   UsersController, VmsController,
 } from './controllers';
 import { CryptoService } from './crypto.service';
-import { ALL_ENTITIES, AppSetting, AuditLog, Client, Organization, User } from './entities';
+import { ALL_ENTITIES, AppSetting, AuditLog, Client, Organization, User, uniqueSlug } from './entities';
 import { SshService } from './ssh.service';
 
 @Module({
@@ -65,6 +65,10 @@ export class AppModule implements OnModuleInit {
       const logo = (await this.settings.findOne({ where: { key: 'logo' } }))?.value ?? null;
       org = await this.orgs.save(this.orgs.create({ name, logo }));
       this.logger.log(`Created default organisation "${name}"`);
+    }
+    for (const o of await this.orgs.find({ where: { slug: IsNull() } })) {
+      o.slug = await uniqueSlug(this.orgs, o.name);
+      await this.orgs.save(o);
     }
     await this.clients.update({ organizationId: IsNull() }, { organizationId: org.id });
     await this.audit.update({ organizationId: IsNull() }, { organizationId: org.id });

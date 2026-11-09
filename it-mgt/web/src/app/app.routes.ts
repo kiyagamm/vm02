@@ -22,6 +22,7 @@ const writerOnly: CanActivateFn = () => inject(Auth).canWrite() ? true : inject(
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
+  { path: 'o/:slug', component: LoginComponent },
   { path: 'signup', component: SignupComponent },
   { path: '', component: DashboardComponent, canActivate: [loggedIn] },
   { path: 'clients/:id', component: ClientDetailComponent, canActivate: [loggedIn] },

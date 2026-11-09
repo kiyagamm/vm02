@@ -15,7 +15,8 @@ export interface User {
 export interface PlatformSettings { name: string; tagline: string | null; logo: string | null; accent: string; theme: 'light' | 'dark' }
 export interface PlatformOverview { organizations: number; users: number; clients: number; devices: number; pendingSignups: number }
 export interface SignupReq { id: string; username: string; type: 'new-org' | 'join'; organizationName: string; createdAt: string }
-export interface OrgSummary extends OrgRef { clientCount: number; userCount: number }
+export interface OrgSummary extends OrgRef { slug: string | null; clientCount: number; userCount: number }
+export interface OrgPublic extends OrgRef { slug: string; logo: string | null }
 export interface Client { id: string; name: string; contact?: string; notes?: string; deviceCount?: number; devices?: Device[] }
 export interface Device {
   id: string; clientId: string; name: string; type: string; host?: string; port?: number; os?: string;
@@ -190,6 +191,7 @@ export class Api {
   setUserOrgs = (id: string, organizationIds: string[]) => this.http.put<User>(`/api/users/${id}/organizations`, { organizationIds });
 
   orgs = () => this.http.get<OrgSummary[]>('/api/organizations');
+  orgBySlug = (slug: string) => this.http.get<OrgPublic>(`/api/settings/org/${encodeURIComponent(slug)}`);
   createOrg = (name: string) => this.http.post<OrgRef>('/api/organizations', { name });
   renameOrg = (id: string, name: string) => this.http.put<OrgRef>(`/api/organizations/${id}`, { name });
   deleteOrg = (id: string) => this.http.delete(`/api/organizations/${id}`);

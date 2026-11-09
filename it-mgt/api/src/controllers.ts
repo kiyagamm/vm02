@@ -16,7 +16,7 @@ import {
   SetSuperDto, SetUserOrgsDto, SignupDto, SwitchOrgDto, UpdatePlatformDto, UpdateBrandingDto, UpdateClientDto, UpdateCredentialDto, UpdateDeviceDto, UpdateOrgDto, UpdateProfileDto,
   UpdateSnippetDto, UpdateUserDto, UpdateVmDto,
 } from './dto';
-import { AppSetting, AuditLog, Client, ConfigSnippet, Credential, Device, Organization, SignupRequest, User, Vm } from './entities';
+import { AppSetting, AuditLog, Client, ConfigSnippet, Credential, Device, Organization, SignupRequest, User, Vm, uniqueSlug } from './entities';
 import { SshService } from './ssh.service';
 
 const uuid = () => new ParseUUIDPipe();
@@ -156,7 +156,7 @@ export class SignupsController {
     let org = await this.orgs.findOne({ where: { name: r.organizationName } });
     if (r.type === 'new-org') {
       if (org) throw new BadRequestException('An organisation with that name already exists');
-      org = await this.orgs.save(this.orgs.create({ name: r.organizationName }));
+      org = await this.orgs.save(this.orgs.create({ name: r.organizationName, slug: await uniqueSlug(this.orgs, r.organizationName) }));
     } else if (!org) throw new BadRequestException('Organisation no longer exists');
     const user = await this.users.save(this.users.create({
       username: r.username, passwordHash: r.passwordHash, role: r.type === 'new-org' ? 'admin' : 'viewer', organizations: [org],
@@ -237,7 +237,7 @@ export class OrganizationsController {
     requireSuper(me);
     const rows = await this.repo.find({ order: { name: 'ASC' } });
     return Promise.all(rows.map(async (o) => ({
-      id: o.id, name: o.name, createdAt: o.createdAt,
+      id: o.id, name: o.name, slug: o.slug, createdAt: o.createdAt,
       clientCount: await this.clients.count({ where: { organizationId: o.id } }),
       userCount: await this.users.count({ where: { organizations: { id: o.id } } }),
     })));
@@ -248,7 +248,7 @@ export class OrganizationsController {
     const name = dto.name.trim();
     if (!name) throw new BadRequestException('Name is required');
     if (await this.repo.findOne({ where: { name } })) throw new BadRequestException('Organisation name already exists');
-    const o = await this.repo.save(this.repo.create({ name, logo: null }));
+    const o = await this.repo.save(this.repo.create({ name, logo: null, slug: await uniqueSlug(this.repo, name) }));
     const u = await this.users.findOneOrFail({ where: { id: me.id }, relations: { organizations: true } });
     u.organizations.push(o);
     await this.users.save(u);
@@ -311,6 +311,14 @@ export class SettingsController {
     const rows = await this.appSettings.find({ where: { key: In(['platform.name', 'platform.tagline', 'platform.logo', 'platform.accent', 'platform.theme']) } });
     const g = (k: string) => rows.find((r) => r.key === `platform.${k}`)?.value ?? null;
     return { name: g('name') || 'NETFETURE', tagline: g('tagline'), logo: g('logo'), accent: g('accent') || '#1d2433', theme: g('theme') === 'dark' ? 'dark' : 'light' };
+  }
+
+  /** Public branding for an organisation's own landing/login page (path /o/:slug or subdomain). */
+  @Public() @Get('org/:slug')
+  async orgBySlug(@Param('slug') slug: string) {
+    const org = await this.orgs.findOne({ where: { slug: slug.toLowerCase() } });
+    if (!org) throw new NotFoundException('Organisation not found');
+    return { id: org.id, name: org.name, slug: org.slug, logo: org.logo };
   }
 
   /** Public so the login page can show a logo; uses the caller's organisation when a valid token is sent. */

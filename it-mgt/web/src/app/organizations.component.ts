@@ -31,11 +31,12 @@ import { Api, Auth, OrgSummary, SignupReq, errMsg } from './api';
       </table>
     }
     <table>
-      <thead><tr><th>Name</th><th>Clients</th><th>Users</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Login link</th><th>Clients</th><th>Users</th><th></th></tr></thead>
       <tbody>
         @for (o of orgs(); track o.id) {
           <tr>
             <td>{{ o.name }} @if (o.id === current()) { <span class="tag">current</span> }</td>
+            <td>@if (o.slug) { <a [href]="link(o.slug)" target="_blank">{{ link(o.slug) }}</a> }</td>
             <td>{{ o.clientCount }}</td>
             <td>{{ o.userCount }}</td>
             <td>
@@ -52,6 +53,7 @@ export class OrganizationsComponent implements OnInit {
   private api = inject(Api);
   private auth = inject(Auth);
   orgs = signal<OrgSummary[]>([]);
+  link = (slug: string) => `${location.origin}/o/${slug}`;
   requests = signal<SignupReq[]>([]);
   error = signal('');
   name = '';

@@ -11,8 +11,19 @@ export const CREDENTIAL_TYPES = ['ssh', 'rdp', 'web', 'snmp', 'database', 'other
 export class Organization {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ unique: true }) name: string;
+  @Column({ type: 'varchar', unique: true, nullable: true }) slug: string | null;
   @Column({ type: 'text', nullable: true }) logo: string | null;
   @CreateDateColumn() createdAt: Date;
+}
+
+const RESERVED_SLUGS = ['www', 'api', 'app', 'admin', 'platform', 'login', 'signup', 'o'];
+
+/** URL/subdomain-safe unique slug derived from an organisation name. */
+export async function uniqueSlug(repo: { findOne(o: any): Promise<unknown> }, name: string): Promise<string> {
+  const base = (name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'org');
+  let slug = RESERVED_SLUGS.includes(base) ? `${base}-org` : base;
+  for (let i = 2; await repo.findOne({ where: { slug } }); i++) slug = `${base}-${i}`;
+  return slug;
 }
 
 @Entity('users')
