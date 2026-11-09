@@ -1,15 +1,16 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Api, BrandingService, errMsg } from './api';
+import { Api, PlatformService, errMsg } from './api';
 
 @Component({
   selector: 'app-login',
   imports: [FormsModule, RouterLink],
   template: `
     <form class="card form login" (ngSubmit)="submit()">
-      @if (brand.branding().logo; as logo) { <img class="login-logo" [src]="logo" alt="Company logo" /> }
-      <h1>Create an account</h1>
+      @if (plat.settings().logo; as logo) { <img class="login-logo" [src]="logo" alt="Logo" /> }
+      <h1>{{ plat.settings().name }}</h1>
+      <p class="muted tagline">Create an account</p>
       @if (done()) {
         <div class="success">Request sent. A super admin must approve it before you can sign in.</div>
         <a routerLink="/login">Back to sign in</a>
@@ -33,7 +34,7 @@ import { Api, BrandingService, errMsg } from './api';
 })
 export class SignupComponent {
   private api = inject(Api);
-  readonly brand = inject(BrandingService);
+  readonly plat = inject(PlatformService);
   type: 'new-org' | 'join' = 'new-org';
   organizationName = '';
   username = '';

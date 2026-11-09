@@ -1,15 +1,16 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { Auth, BrandingService, OrgRef, errMsg } from './api';
+import { Auth, BrandingService, OrgRef, PlatformService, errMsg } from './api';
 
 @Component({
   selector: 'app-login',
   imports: [FormsModule, RouterLink],
   template: `
     <form class="card form login" (ngSubmit)="submit()">
-      @if (brand.branding().logo; as logo) { <img class="login-logo" [src]="logo" alt="Company logo" /> }
-      <h1>{{ brand.branding().companyName || 'IT Management' }}</h1>
+      @if (plat.settings().logo; as logo) { <img class="login-logo" [src]="logo" alt="Logo" /> }
+      <h1>{{ plat.settings().name }}</h1>
+      @if (plat.settings().tagline; as t) { <p class="muted tagline">{{ t }}</p> }
       @if (error()) { <div class="error">{{ error() }}</div> }
       <label>Username <input name="u" [(ngModel)]="username" autocomplete="username" required /></label>
       <label>Password <input name="p" type="password" [(ngModel)]="password" autocomplete="current-password" required /></label>
@@ -26,7 +27,8 @@ import { Auth, BrandingService, OrgRef, errMsg } from './api';
 })
 export class LoginComponent {
   private auth = inject(Auth);
-  readonly brand = inject(BrandingService);
+  readonly plat = inject(PlatformService);
+  private brand = inject(BrandingService);
   private router = inject(Router);
   username = '';
   password = '';

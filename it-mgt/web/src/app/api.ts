@@ -9,9 +9,11 @@ export const CREDENTIAL_TYPES = ['ssh', 'rdp', 'web', 'snmp', 'database', 'other
 
 export interface OrgRef { id: string; name: string }
 export interface User {
-  id: string; username: string; role: Role; active: boolean; isSuperAdmin?: boolean;
+  id: string; username: string; role: Role; active: boolean; isSuperAdmin?: boolean; platform?: boolean;
   organization?: OrgRef; organizations?: OrgRef[];
 }
+export interface PlatformSettings { name: string; tagline: string | null; logo: string | null; accent: string; theme: 'light' | 'dark' }
+export interface PlatformOverview { organizations: number; users: number; clients: number; devices: number; pendingSignups: number }
 export interface SignupReq { id: string; username: string; type: 'new-org' | 'join'; organizationName: string; createdAt: string }
 export interface OrgSummary extends OrgRef { clientCount: number; userCount: number }
 export interface Client { id: string; name: string; contact?: string; notes?: string; deviceCount?: number; devices?: Device[] }
@@ -42,6 +44,7 @@ export class Auth {
   readonly user = signal<User | null>(JSON.parse(localStorage.getItem(USER_KEY) ?? 'null'));
   readonly isAdmin = computed(() => this.user()?.role === 'admin');
   readonly isSuper = computed(() => !!this.user()?.isSuperAdmin);
+  readonly isPlatform = computed(() => !!this.user()?.platform);
   readonly canWrite = computed(() => ['admin', 'engineer'].includes(this.user()?.role ?? ''));
 
   get token() { return localStorage.getItem(TOKEN_KEY); }
@@ -55,6 +58,10 @@ export class Auth {
 
   switchOrg(organizationId: string) {
     return this.http.post<{ token: string; user: User }>('/api/auth/switch', { organizationId }).pipe(tap((r) => this.store(r.token, r.user)));
+  }
+
+  platform() {
+    return this.http.post<{ token: string; user: User }>('/api/auth/platform', {}).pipe(tap((r) => this.store(r.token, r.user)));
   }
 
   private store(token: string, user: User) {
@@ -94,6 +101,22 @@ export class BrandingService {
 }
 
 export type ThemeName = 'light' | 'dark';
+
+/** Branding of the platform operator (super admin): shown on landing/login/signup and in the platform console. */
+@Injectable({ providedIn: 'root' })
+export class PlatformService {
+  private http = inject(HttpClient);
+  readonly settings = signal<PlatformSettings>({ name: 'NETFETURE', tagline: null, logo: null, accent: '#1d2433', theme: 'light' });
+
+  load() { this.http.get<PlatformSettings>('/api/settings/platform').subscribe({ next: (s) => this.set(s), error: () => {} }); }
+  save(patch: Partial<PlatformSettings>) { return this.http.put<PlatformSettings>('/api/settings/platform', patch).pipe(tap((s) => this.set(s))); }
+  private set(s: PlatformSettings) {
+    this.settings.set(s);
+    document.documentElement.style.setProperty('--accent', s.accent);
+    document.title = s.name;
+    if (!localStorage.getItem('itmgt.theme')) document.documentElement.setAttribute('data-theme', s.theme);
+  }
+}
 
 @Injectable({ providedIn: 'root' })
 export class Theme {
@@ -174,6 +197,10 @@ export class Api {
   signups = () => this.http.get<SignupReq[]>('/api/signups');
   approveSignup = (id: string) => this.http.post(`/api/signups/${id}/approve`, {});
   rejectSignup = (id: string) => this.http.delete(`/api/signups/${id}`);
+  overview = () => this.http.get<PlatformOverview>('/api/platform/overview');
+  platformUsers = () => this.http.get<User[]>('/api/platform/users');
+  setPlatformUserOrgs = (id: string, organizationIds: string[]) => this.http.put(`/api/platform/users/${id}/organizations`, { organizationIds });
+  setSuper = (id: string, isSuperAdmin: boolean) => this.http.put(`/api/platform/users/${id}/super`, { isSuperAdmin });
 }
 
 /** Copy only the allowed fields; empty strings become null so fields can be cleared. */

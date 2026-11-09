@@ -82,5 +82,6 @@ export class OrganizationsComponent implements OnInit {
   private refreshSession() {
     const id = this.current();
     if (id) this.auth.switchOrg(id).subscribe(this.handle);
+    else this.load();
   }
 }

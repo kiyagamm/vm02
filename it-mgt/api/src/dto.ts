@@ -16,6 +16,17 @@ export class SignupDto {
   @IsIn(['new-org', 'join']) type: 'new-org' | 'join';
   @IsString() @Length(1, 100) organizationName: string;
 }
+export class UpdatePlatformDto {
+  @IsOptional() @IsString() @Length(1, 100) name?: string;
+  @IsOptional() @IsString() @MaxLength(200) tagline?: string | null;
+  @IsOptional() @IsString() @MaxLength(700000) @Matches(/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/)
+  logo?: string | null;
+  @IsOptional() @IsString() @Matches(/^#[0-9a-fA-F]{6}$/) accent?: string;
+  @IsOptional() @IsIn(['light', 'dark']) theme?: 'light' | 'dark';
+}
+export class SetSuperDto {
+  @IsBoolean() isSuperAdmin: boolean;
+}
 export class SwitchOrgDto {
   @IsUUID() organizationId: string;
 }

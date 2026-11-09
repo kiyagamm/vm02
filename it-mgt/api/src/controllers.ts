@@ -8,15 +8,15 @@ import * as bcrypt from 'bcryptjs';
 import type { Request, Response } from 'express';
 import { ILike, In, Repository } from 'typeorm';
 import { AuditService } from './audit.service';
-import { AuthUser, Ctx, CurrentUser, Org, Public, ReqCtx, Roles } from './auth';
+import { AuthUser, Ctx, CurrentUser, Org, PlatformOk, Public, ReqCtx, Roles } from './auth';
 import { checkCommand } from './command-policy';
 import { CryptoService } from './crypto.service';
 import {
   CreateClientDto, CreateCredentialDto, CreateDeviceDto, CreateOrgDto, CreateSnippetDto, CreateUserDto, CreateVmDto, ExecDto, LoginDto,
-  SetUserOrgsDto, SignupDto, SwitchOrgDto, UpdateBrandingDto, UpdateClientDto, UpdateCredentialDto, UpdateDeviceDto, UpdateOrgDto, UpdateProfileDto,
+  SetSuperDto, SetUserOrgsDto, SignupDto, SwitchOrgDto, UpdatePlatformDto, UpdateBrandingDto, UpdateClientDto, UpdateCredentialDto, UpdateDeviceDto, UpdateOrgDto, UpdateProfileDto,
   UpdateSnippetDto, UpdateUserDto, UpdateVmDto,
 } from './dto';
-import { AuditLog, Client, ConfigSnippet, Credential, Device, Organization, SignupRequest, User, Vm } from './entities';
+import { AppSetting, AuditLog, Client, ConfigSnippet, Credential, Device, Organization, SignupRequest, User, Vm } from './entities';
 import { SshService } from './ssh.service';
 
 const uuid = () => new ParseUUIDPipe();
@@ -32,7 +32,7 @@ const vmScope = (orgId: string) => ({ device: devScope(orgId) });
 const credScope = (orgId: string) => [{ device: devScope(orgId) }, { vm: vmScope(orgId) }];
 const requireSuper = (u: AuthUser) => { if (!u.isSuperAdmin) throw new ForbiddenException('Super admin only'); };
 
-@Controller('auth')
+@Controller('auth') @PlatformOk()
 export class AuthController {
   constructor(
     @InjectRepository(User) private users: Repository<User>,
@@ -45,10 +45,10 @@ export class AuthController {
     return u.isSuperAdmin ? this.orgs.find({ order: { name: 'ASC' } }) : Promise.resolve([...u.organizations].sort((a, b) => a.name.localeCompare(b.name)));
   }
 
-  private async session(u: User, org: Organization) {
-    const token = await this.jwt.signAsync({ sub: u.id, username: u.username, role: u.role, org: org.id });
+  private async session(u: User, org: Organization | null) {
+    const token = await this.jwt.signAsync({ sub: u.id, username: u.username, role: u.role, ...(org ? { org: org.id } : { platform: true }) });
     const organizations = (await this.orgsFor(u)).map((o) => ({ id: o.id, name: o.name }));
-    return { token, user: { ...strip(u), organization: { id: org.id, name: org.name }, organizations } };
+    return { token, user: { ...strip(u), ...(org ? { organization: { id: org.id, name: org.name } } : { platform: true }), organizations } };
   }
 
   @Public() @Post('login') @HttpCode(200)
@@ -58,6 +58,11 @@ export class AuthController {
     if (!ok) {
       await this.audit.log({ ...ctx, username: dto.username }, 'login-failed', 'user');
       throw new UnauthorizedException('Invalid credentials');
+    }
+    // Super admins land in the platform console unless they ask for a specific organisation.
+    if (user.isSuperAdmin && !dto.organizationId) {
+      await this.audit.log({ ...ctx, userId: user.id, username: user.username }, 'login', 'user', user.id, 'platform console');
+      return this.session(user, null);
     }
     const available = await this.orgsFor(user);
     if (available.length === 0) throw new ForbiddenException('This user does not belong to any organisation');
@@ -78,9 +83,17 @@ export class AuthController {
     return this.session(user, org);
   }
 
+  @Post('platform') @HttpCode(200)
+  async platform(@CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    const user = await this.users.findOneOrFail({ where: { id: me.id }, relations: { organizations: true } });
+    await this.audit.log({ ...ctx, orgId: null }, 'login', 'user', user.id, 'platform console');
+    return this.session(user, null);
+  }
+
   @Get('me') async me(@CurrentUser() me: AuthUser) {
     const user = await this.users.findOneOrFail({ where: { id: me.id }, relations: { organizations: true } });
-    const org = await this.orgs.findOneOrFail({ where: { id: me.orgId } });
+    const org = me.orgId ? await this.orgs.findOneOrFail({ where: { id: me.orgId } }) : null;
     return (await this.session(user, org)).user;
   }
 
@@ -97,12 +110,12 @@ export class AuthController {
     if (dto.newPassword) u.passwordHash = await bcrypt.hash(dto.newPassword, 12);
     await this.users.save(u);
     await this.audit.log({ ...ctx, username: u.username }, 'update', 'user', u.id, `profile: ${Object.keys(dto).filter((k) => k !== 'currentPassword').join(',')}`);
-    const org = await this.orgs.findOneOrFail({ where: { id: me.orgId } });
+    const org = me.orgId ? await this.orgs.findOneOrFail({ where: { id: me.orgId } }) : null;
     return (await this.session(u, org)).user;
   }
 }
 
-@Controller('signups')
+@Controller('signups') @PlatformOk()
 export class SignupsController {
   constructor(
     @InjectRepository(SignupRequest) private repo: Repository<SignupRequest>,
@@ -161,7 +174,57 @@ export class SignupsController {
   }
 }
 
-@Controller('organizations')
+@Controller('platform') @PlatformOk()
+export class PlatformController {
+  constructor(
+    @InjectRepository(Organization) private orgs: Repository<Organization>,
+    @InjectRepository(User) private users: Repository<User>,
+    @InjectRepository(Client) private clients: Repository<Client>,
+    @InjectRepository(Device) private devices: Repository<Device>,
+    @InjectRepository(SignupRequest) private signups: Repository<SignupRequest>,
+    private audit: AuditService,
+  ) {}
+
+  @Get('overview') async overview(@CurrentUser() me: AuthUser) {
+    requireSuper(me);
+    return {
+      organizations: await this.orgs.count(), users: await this.users.count(), clients: await this.clients.count(),
+      devices: await this.devices.count(), pendingSignups: await this.signups.count(),
+    };
+  }
+
+  @Get('users') async listUsers(@CurrentUser() me: AuthUser) {
+    requireSuper(me);
+    return (await this.users.find({ relations: { organizations: true }, order: { username: 'ASC' } })).map(strip);
+  }
+
+  @Put('users/:id/organizations')
+  async setOrgs(@Param('id', uuid()) id: string, @Body() dto: SetUserOrgsDto, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    const u = await this.users.findOne({ where: { id }, relations: { organizations: true } });
+    if (!u) throw new NotFoundException();
+    const orgs = await this.orgs.find({ where: { id: In(dto.organizationIds) } });
+    if (orgs.length !== new Set(dto.organizationIds).size) throw new BadRequestException('Unknown organisation');
+    u.organizations = orgs;
+    await this.users.save(u);
+    await this.audit.log({ ...ctx, orgId: null }, 'update', 'user', id, `${u.username}: organisations ${orgs.map((o) => o.name).join(', ')}`);
+    return strip(u);
+  }
+
+  @Put('users/:id/super')
+  async setSuper(@Param('id', uuid()) id: string, @Body() dto: SetSuperDto, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    if (id === me.id) throw new BadRequestException('You cannot change your own super-admin status');
+    const u = await this.users.findOne({ where: { id }, relations: { organizations: true } });
+    if (!u) throw new NotFoundException();
+    u.isSuperAdmin = dto.isSuperAdmin;
+    await this.users.save(u);
+    await this.audit.log({ ...ctx, orgId: null }, 'update', 'user', id, `${u.username}: super admin ${dto.isSuperAdmin}`);
+    return strip(u);
+  }
+}
+
+@Controller('organizations') @PlatformOk()
 export class OrganizationsController {
   constructor(
     @InjectRepository(Organization) private repo: Repository<Organization>,
@@ -222,10 +285,33 @@ export class OrganizationsController {
 @Controller('settings')
 export class SettingsController {
   constructor(
+    @InjectRepository(AppSetting) private appSettings: Repository<AppSetting>,
     @InjectRepository(Organization) private orgs: Repository<Organization>,
     private jwt: JwtService,
     private audit: AuditService,
   ) {}
+
+  /** Platform (super-admin) branding shown on the landing, login and signup pages. */
+  @Public() @Get('platform')
+  platform() { return this.readPlatform(); }
+
+  @Put('platform') @PlatformOk()
+  async updatePlatform(@Body() dto: UpdatePlatformDto, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    for (const [k, v] of Object.entries(dto)) {
+      const key = `platform.${k}`;
+      if (v === null || v === '') await this.appSettings.delete({ key });
+      else await this.appSettings.save({ key, value: String(v).trim() });
+    }
+    await this.audit.log({ ...ctx, orgId: null }, 'update', 'settings', undefined, `platform: ${Object.keys(dto).join(',')}`);
+    return this.readPlatform();
+  }
+
+  private async readPlatform() {
+    const rows = await this.appSettings.find({ where: { key: In(['platform.name', 'platform.tagline', 'platform.logo', 'platform.accent', 'platform.theme']) } });
+    const g = (k: string) => rows.find((r) => r.key === `platform.${k}`)?.value ?? null;
+    return { name: g('name') || 'NETFETURE', tagline: g('tagline'), logo: g('logo'), accent: g('accent') || '#1d2433', theme: g('theme') === 'dark' ? 'dark' : 'light' };
+  }
 
   /** Public so the login page can show a logo; uses the caller's organisation when a valid token is sent. */
   @Public() @Get('branding')
@@ -590,7 +676,7 @@ export class ExecController {
 
   @Post() @HttpCode(200)
   async run(@Body() dto: ExecDto, @Ctx() ctx: ReqCtx, @CurrentUser() user: AuthUser) {
-    const cred = await this.creds.findOne({ where: credScope(user.orgId).map((s) => ({ id: dto.credentialId, ...s })) });
+    const cred = await this.creds.findOne({ where: credScope(user.orgId!).map((s) => ({ id: dto.credentialId, ...s })) });
     if (!cred) throw new NotFoundException('Credential not found');
     let host: string | null = null;
     let port = 22;

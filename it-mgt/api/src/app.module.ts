@@ -8,7 +8,7 @@ import { AuditService } from './audit.service';
 import { JwtAuthGuard, RolesGuard } from './auth';
 import {
   AuditController, AuthController, ClientsController, CredentialsController, DevicesController,
-  ExecController, OrganizationsController, SearchController, SettingsController, SnippetsController, SignupsController,
+  ExecController, OrganizationsController, SearchController, SettingsController, SnippetsController, SignupsController, PlatformController,
   UsersController, VmsController,
 } from './controllers';
 import { CryptoService } from './crypto.service';
@@ -39,7 +39,7 @@ import { SshService } from './ssh.service';
   controllers: [
     AuthController, UsersController, ClientsController, DevicesController, VmsController,
     CredentialsController, ExecController, AuditController, SearchController, SettingsController,
-    SnippetsController, OrganizationsController, SignupsController,
+    SnippetsController, OrganizationsController, PlatformController, SignupsController,
   ],
   providers: [
     CryptoService, AuditService, SshService,
