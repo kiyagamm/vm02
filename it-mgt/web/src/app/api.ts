@@ -12,6 +12,7 @@ export interface User {
   id: string; username: string; role: Role; active: boolean; isSuperAdmin?: boolean;
   organization?: OrgRef; organizations?: OrgRef[];
 }
+export interface SignupReq { id: string; username: string; type: 'new-org' | 'join'; organizationName: string; createdAt: string }
 export interface OrgSummary extends OrgRef { clientCount: number; userCount: number }
 export interface Client { id: string; name: string; contact?: string; notes?: string; deviceCount?: number; devices?: Device[] }
 export interface Device {
@@ -169,6 +170,10 @@ export class Api {
   createOrg = (name: string) => this.http.post<OrgRef>('/api/organizations', { name });
   renameOrg = (id: string, name: string) => this.http.put<OrgRef>(`/api/organizations/${id}`, { name });
   deleteOrg = (id: string) => this.http.delete(`/api/organizations/${id}`);
+  signup = (b: { type: string; organizationName: string; username: string; password: string }) => this.http.post('/api/signups', b);
+  signups = () => this.http.get<SignupReq[]>('/api/signups');
+  approveSignup = (id: string) => this.http.post(`/api/signups/${id}/approve`, {});
+  rejectSignup = (id: string) => this.http.delete(`/api/signups/${id}`);
 }
 
 /** Copy only the allowed fields; empty strings become null so fields can be cleared. */

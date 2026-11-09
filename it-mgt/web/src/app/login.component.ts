@@ -1,11 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Auth, BrandingService, OrgRef, errMsg } from './api';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <form class="card form login" (ngSubmit)="submit()">
       @if (brand.branding().logo; as logo) { <img class="login-logo" [src]="logo" alt="Company logo" /> }
@@ -21,6 +21,7 @@ import { Auth, BrandingService, OrgRef, errMsg } from './api';
         </label>
       }
       <button>{{ orgs().length ? 'Continue' : 'Sign in' }}</button>
+      <a routerLink="/signup">Create an account</a>
     </form>`,
 })
 export class LoginComponent {

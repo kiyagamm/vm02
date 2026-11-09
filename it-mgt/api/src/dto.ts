@@ -10,6 +10,12 @@ export class LoginDto {
   @IsString() password: string;
   @IsOptional() @IsUUID() organizationId?: string;
 }
+export class SignupDto {
+  @IsString() @Length(3, 64) username: string;
+  @IsString() @MinLength(8) @MaxLength(128) password: string;
+  @IsIn(['new-org', 'join']) type: 'new-org' | 'join';
+  @IsString() @Length(1, 100) organizationName: string;
+}
 export class SwitchOrgDto {
   @IsUUID() organizationId: string;
 }

@@ -13,10 +13,10 @@ import { checkCommand } from './command-policy';
 import { CryptoService } from './crypto.service';
 import {
   CreateClientDto, CreateCredentialDto, CreateDeviceDto, CreateOrgDto, CreateSnippetDto, CreateUserDto, CreateVmDto, ExecDto, LoginDto,
-  SetUserOrgsDto, SwitchOrgDto, UpdateBrandingDto, UpdateClientDto, UpdateCredentialDto, UpdateDeviceDto, UpdateOrgDto, UpdateProfileDto,
+  SetUserOrgsDto, SignupDto, SwitchOrgDto, UpdateBrandingDto, UpdateClientDto, UpdateCredentialDto, UpdateDeviceDto, UpdateOrgDto, UpdateProfileDto,
   UpdateSnippetDto, UpdateUserDto, UpdateVmDto,
 } from './dto';
-import { AuditLog, Client, ConfigSnippet, Credential, Device, Organization, User, Vm } from './entities';
+import { AuditLog, Client, ConfigSnippet, Credential, Device, Organization, SignupRequest, User, Vm } from './entities';
 import { SshService } from './ssh.service';
 
 const uuid = () => new ParseUUIDPipe();
@@ -99,6 +99,65 @@ export class AuthController {
     await this.audit.log({ ...ctx, username: u.username }, 'update', 'user', u.id, `profile: ${Object.keys(dto).filter((k) => k !== 'currentPassword').join(',')}`);
     const org = await this.orgs.findOneOrFail({ where: { id: me.orgId } });
     return (await this.session(u, org)).user;
+  }
+}
+
+@Controller('signups')
+export class SignupsController {
+  constructor(
+    @InjectRepository(SignupRequest) private repo: Repository<SignupRequest>,
+    @InjectRepository(Organization) private orgs: Repository<Organization>,
+    @InjectRepository(User) private users: Repository<User>,
+    private audit: AuditService,
+  ) {}
+
+  @Public() @Post() @HttpCode(200)
+  async signup(@Body() dto: SignupDto) {
+    const name = dto.organizationName.trim();
+    const username = dto.username.trim();
+    if (!name || !username) throw new BadRequestException('Username and organisation are required');
+    if (await this.users.findOne({ where: { username } }) || await this.repo.findOne({ where: { username } })) {
+      throw new BadRequestException('Username is already taken or awaiting approval');
+    }
+    const existing = await this.orgs.findOne({ where: { name: ILike(escapeLike(name)) } });
+    if (dto.type === 'new-org' && existing) throw new BadRequestException('An organisation with that name already exists');
+    if (dto.type === 'join' && !existing) throw new BadRequestException('Organisation not found. Check the name with your administrator');
+    await this.repo.save(this.repo.create({
+      username, type: dto.type, organizationName: existing?.name ?? name, passwordHash: await bcrypt.hash(dto.password, 12),
+    }));
+    return { ok: true };
+  }
+
+  @Get() async list(@CurrentUser() me: AuthUser) {
+    requireSuper(me);
+    const rows = await this.repo.find({ order: { createdAt: 'ASC' } });
+    return rows.map((r) => ({ id: r.id, username: r.username, type: r.type, organizationName: r.organizationName, createdAt: r.createdAt }));
+  }
+
+  @Post(':id/approve') @HttpCode(200)
+  async approve(@Param('id', uuid()) id: string, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    const r = await this.repo.findOne({ where: { id } });
+    if (!r) throw new NotFoundException();
+    if (await this.users.findOne({ where: { username: r.username } })) throw new BadRequestException('Username is now taken');
+    let org = await this.orgs.findOne({ where: { name: r.organizationName } });
+    if (r.type === 'new-org') {
+      if (org) throw new BadRequestException('An organisation with that name already exists');
+      org = await this.orgs.save(this.orgs.create({ name: r.organizationName }));
+    } else if (!org) throw new BadRequestException('Organisation no longer exists');
+    const user = await this.users.save(this.users.create({
+      username: r.username, passwordHash: r.passwordHash, role: r.type === 'new-org' ? 'admin' : 'viewer', organizations: [org],
+    }));
+    await this.repo.delete(id);
+    await this.audit.log(ctx, 'create', 'user', user.id, `signup approved: ${r.username} -> ${org.name}`);
+    return { ok: true };
+  }
+
+  @Delete(':id') @HttpCode(200)
+  async reject(@Param('id', uuid()) id: string, @CurrentUser() me: AuthUser) {
+    requireSuper(me);
+    await this.repo.delete(id);
+    return { ok: true };
   }
 }
 

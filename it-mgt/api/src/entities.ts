@@ -136,4 +136,14 @@ export class ConfigSnippet {
   @UpdateDateColumn() updatedAt: Date;
 }
 
-export const ALL_ENTITIES = [Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet];
+@Entity('signup_requests')
+export class SignupRequest {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column() username: string;
+  @Column() passwordHash: string;
+  @Column({ type: 'varchar' }) type: 'new-org' | 'join';
+  @Column() organizationName: string;
+  @CreateDateColumn() createdAt: Date;
+}
+
+export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet];

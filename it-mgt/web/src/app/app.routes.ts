@@ -7,6 +7,7 @@ import { DashboardComponent } from './dashboard.component';
 import { LoginComponent } from './login.component';
 import { OrganizationsComponent } from './organizations.component';
 import { SettingsComponent } from './settings.component';
+import { SignupComponent } from './signup.component';
 import { SnippetsComponent } from './snippets.component';
 import { UsersComponent } from './users.component';
 
@@ -17,6 +18,7 @@ const superOnly: CanActivateFn = () => inject(Auth).isSuper() ? true : inject(Ro
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
+  { path: 'signup', component: SignupComponent },
   { path: '', component: DashboardComponent, canActivate: [loggedIn] },
   { path: 'clients/:id', component: ClientDetailComponent, canActivate: [loggedIn] },
   { path: 'audit', component: AuditComponent, canActivate: [loggedIn, adminOnly] },

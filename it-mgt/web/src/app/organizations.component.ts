@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Api, Auth, OrgSummary, errMsg } from './api';
+import { Api, Auth, OrgSummary, SignupReq, errMsg } from './api';
 
 @Component({
   selector: 'app-organizations',
@@ -14,6 +14,22 @@ import { Api, Auth, OrgSummary, errMsg } from './api';
       <label>Name <input name="n" [(ngModel)]="name" required maxlength="100" /></label>
       <div><button>Create</button></div>
     </form>
+    @if (requests().length) {
+      <h3>Pending signup requests</h3>
+      <table>
+        <thead><tr><th>Username</th><th>Request</th><th>Organisation</th><th></th></tr></thead>
+        <tbody>
+          @for (r of requests(); track r.id) {
+            <tr>
+              <td>{{ r.username }}</td>
+              <td>{{ r.type === 'new-org' ? 'New organisation (admin)' : 'Join existing (viewer)' }}</td>
+              <td>{{ r.organizationName }}</td>
+              <td><button class="sm" (click)="approve(r)">Approve</button> <button class="sm danger" (click)="reject(r)">Reject</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
     <table>
       <thead><tr><th>Name</th><th>Clients</th><th>Users</th><th></th></tr></thead>
       <tbody>
@@ -36,12 +52,16 @@ export class OrganizationsComponent implements OnInit {
   private api = inject(Api);
   private auth = inject(Auth);
   orgs = signal<OrgSummary[]>([]);
+  requests = signal<SignupReq[]>([]);
   error = signal('');
   name = '';
 
   current = () => this.auth.user()?.organization?.id;
   ngOnInit() { this.load(); }
-  load() { this.api.orgs().subscribe({ next: (o) => this.orgs.set(o), error: (e) => this.error.set(errMsg(e)) }); }
+  loadRequests() { this.api.signups().subscribe((r) => this.requests.set(r)); }
+  approve(r: SignupReq) { this.api.approveSignup(r.id).subscribe({ next: () => { this.load(); this.refreshSession(); }, error: this.handle.error }); }
+  reject(r: SignupReq) { if (confirm(`Reject request from ${r.username}?`)) this.api.rejectSignup(r.id).subscribe({ next: () => this.loadRequests(), error: this.handle.error }); }
+  load() { this.loadRequests(); this.api.orgs().subscribe({ next: (o) => this.orgs.set(o), error: (e) => this.error.set(errMsg(e)) }); }
   private handle = { next: () => { this.error.set(''); this.load(); }, error: (e: unknown) => { this.error.set(errMsg(e)); this.load(); } };
 
   create() {
