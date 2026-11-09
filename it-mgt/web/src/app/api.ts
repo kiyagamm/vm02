@@ -15,12 +15,14 @@ export interface User {
 export interface PlatformSettings { name: string; tagline: string | null; logo: string | null; accent: string; theme: 'light' | 'dark' }
 export interface PlatformOverview { organizations: number; users: number; clients: number; devices: number; pendingSignups: number }
 export interface SignupReq { id: string; username: string; type: 'new-org' | 'join'; organizationName: string; createdAt: string }
-export interface OrgSummary extends OrgRef { slug: string | null; clientCount: number; userCount: number }
+export interface OrgSummary extends OrgRef { slug: string | null; clientCount: number; userCount: number; deviceCount: number; maxUsers: number; maxDevices: number }
 export interface OrgPublic extends OrgRef { slug: string; logo: string | null }
 export interface Client { id: string; name: string; contact?: string; notes?: string; deviceCount?: number; devices?: Device[] }
 export interface Device {
   id: string; clientId: string; name: string; type: string; host?: string; port?: number; os?: string;
   platform?: string; brand?: string; model?: string; location?: string; deploymentDate?: string | null; notes?: string; metadata: Record<string, unknown>; vms?: Vm[];
+  snmpEnabled?: boolean; snmpVersion?: string; snmpPort?: number | null; snmpCommunity?: string;
+  status?: 'up' | 'down' | null; statusCheckedAt?: string | null; statusInfo?: { sysName?: string; sysDescr?: string; uptime?: string; error?: string } | null;
 }
 export interface Vm {
   id: string; deviceId: string; name: string; ip?: string; os?: string; cpu?: number; ramMb?: number;
@@ -194,6 +196,8 @@ export class Api {
   orgBySlug = (slug: string) => this.http.get<OrgPublic>(`/api/settings/org/${encodeURIComponent(slug)}`);
   createOrg = (name: string) => this.http.post<OrgRef>('/api/organizations', { name });
   renameOrg = (id: string, name: string) => this.http.put<OrgRef>(`/api/organizations/${id}`, { name });
+  updateOrg = (id: string, patch: { name?: string; maxUsers?: number; maxDevices?: number }) => this.http.put<OrgRef>(`/api/organizations/${id}`, patch);
+  checkDevice = (id: string) => this.http.post<Device>(`/api/devices/${id}/check`, {});
   deleteOrg = (id: string) => this.http.delete(`/api/organizations/${id}`);
   signup = (b: { type: string; organizationName: string; username: string; password: string }) => this.http.post('/api/signups', b);
   signups = () => this.http.get<SignupReq[]>('/api/signups');

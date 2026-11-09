@@ -12,6 +12,8 @@ export class Organization {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ unique: true }) name: string;
   @Column({ type: 'varchar', unique: true, nullable: true }) slug: string | null;
+  @Column({ type: 'int', default: 3 }) maxUsers: number;
+  @Column({ type: 'int', default: 10 }) maxDevices: number;
   @Column({ type: 'text', nullable: true }) logo: string | null;
   @CreateDateColumn() createdAt: Date;
 }
@@ -78,6 +80,13 @@ export class Device {
   @Column({ type: 'date', nullable: true }) deploymentDate: string | null;
   @Column({ type: 'text', nullable: true }) notes: string | null;
   @Column({ type: 'jsonb', default: {} }) metadata: Record<string, unknown>;
+  @Column({ default: false }) snmpEnabled: boolean;
+  @Column({ type: 'varchar', default: '2c' }) snmpVersion: string;
+  @Column({ type: 'int', nullable: true }) snmpPort: number | null;
+  @Column({ type: 'text', nullable: true, select: false }) snmpCommunityEnc: string | null;
+  @Column({ type: 'varchar', nullable: true }) status: string | null;
+  @Column({ type: 'timestamptz', nullable: true }) statusCheckedAt: Date | null;
+  @Column({ type: 'jsonb', nullable: true }) statusInfo: Record<string, unknown> | null;
   @OneToMany(() => Vm, (v) => v.device) vms: Vm[];
   @OneToMany(() => Credential, (c) => c.device) credentials: Credential[];
   @CreateDateColumn() createdAt: Date;

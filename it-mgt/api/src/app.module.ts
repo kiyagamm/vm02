@@ -14,6 +14,7 @@ import {
 import { CryptoService } from './crypto.service';
 import { ALL_ENTITIES, AppSetting, AuditLog, Client, Organization, User, uniqueSlug } from './entities';
 import { SshService } from './ssh.service';
+import { SnmpService } from './snmp.service';
 
 @Module({
   imports: [
@@ -42,7 +43,7 @@ import { SshService } from './ssh.service';
     SnippetsController, OrganizationsController, PlatformController, SignupsController,
   ],
   providers: [
-    CryptoService, AuditService, SshService,
+    CryptoService, AuditService, SshService, SnmpService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

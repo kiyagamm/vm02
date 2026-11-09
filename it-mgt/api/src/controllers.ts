@@ -18,6 +18,7 @@ import {
 } from './dto';
 import { AppSetting, AuditLog, Client, ConfigSnippet, Credential, Device, Organization, SignupRequest, User, Vm, uniqueSlug } from './entities';
 import { SshService } from './ssh.service';
+import { SnmpService, assertSnmpHost } from './snmp.service';
 
 const uuid = () => new ParseUUIDPipe();
 const strip = (u: User) => ({
@@ -158,6 +159,10 @@ export class SignupsController {
       if (org) throw new BadRequestException('An organisation with that name already exists');
       org = await this.orgs.save(this.orgs.create({ name: r.organizationName, slug: await uniqueSlug(this.orgs, r.organizationName) }));
     } else if (!org) throw new BadRequestException('Organisation no longer exists');
+    if (r.type === 'join' && org) {
+      const used = await this.users.count({ where: { organizations: { id: org.id }, isSuperAdmin: false } });
+      if (used >= org.maxUsers) throw new BadRequestException(`${org.name} has reached its user limit (${org.maxUsers}). Raise the limit first.`);
+    }
     const user = await this.users.save(this.users.create({
       username: r.username, passwordHash: r.passwordHash, role: r.type === 'new-org' ? 'admin' : 'viewer', organizations: [org],
     }));
@@ -230,6 +235,7 @@ export class OrganizationsController {
     @InjectRepository(Organization) private repo: Repository<Organization>,
     @InjectRepository(Client) private clients: Repository<Client>,
     @InjectRepository(User) private users: Repository<User>,
+    @InjectRepository(Device) private devices: Repository<Device>,
     private audit: AuditService,
   ) {}
 
@@ -237,9 +243,10 @@ export class OrganizationsController {
     requireSuper(me);
     const rows = await this.repo.find({ order: { name: 'ASC' } });
     return Promise.all(rows.map(async (o) => ({
-      id: o.id, name: o.name, slug: o.slug, createdAt: o.createdAt,
+      id: o.id, name: o.name, slug: o.slug, createdAt: o.createdAt, maxUsers: o.maxUsers, maxDevices: o.maxDevices,
+      deviceCount: await this.devices.count({ where: devScope(o.id) }),
       clientCount: await this.clients.count({ where: { organizationId: o.id } }),
-      userCount: await this.users.count({ where: { organizations: { id: o.id } } }),
+      userCount: await this.users.count({ where: { organizations: { id: o.id }, isSuperAdmin: false } }),
     })));
   }
 
@@ -261,13 +268,15 @@ export class OrganizationsController {
     const o = await this.repo.findOne({ where: { id } });
     if (!o) throw new NotFoundException();
     const name = dto.name?.trim();
+    if (dto.maxUsers !== undefined) o.maxUsers = dto.maxUsers;
+    if (dto.maxDevices !== undefined) o.maxDevices = dto.maxDevices;
     if (name && name !== o.name) {
       if (await this.repo.findOne({ where: { name } })) throw new BadRequestException('Organisation name already exists');
       o.name = name;
-      await this.repo.save(o);
     }
-    await this.audit.log(ctx, 'update', 'organization', id, o.name);
-    return { id: o.id, name: o.name };
+    await this.repo.save(o);
+    await this.audit.log(ctx, 'update', 'organization', id, `${o.name}: limits ${o.maxUsers} users / ${o.maxDevices} devices`);
+    return { id: o.id, name: o.name, maxUsers: o.maxUsers, maxDevices: o.maxDevices };
   }
 
   @Delete(':id') @HttpCode(204)
@@ -419,6 +428,8 @@ export class UsersController {
   @Post() async create(@Body() dto: CreateUserDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
     if (await this.repo.findOne({ where: { username: dto.username } })) throw new BadRequestException('Username taken');
     const org = await this.orgs.findOneOrFail({ where: { id: orgId } });
+    const used = await this.repo.count({ where: { organizations: { id: orgId }, isSuperAdmin: false } });
+    if (used >= org.maxUsers) throw new ForbiddenException(`User limit reached (${org.maxUsers}). Ask the platform administrator to raise it.`);
     const u = await this.repo.save(this.repo.create({
       username: dto.username, role: dto.role as User['role'], passwordHash: await bcrypt.hash(dto.password, 12), organizations: [org],
     }));
@@ -524,6 +535,9 @@ export class DevicesController {
   constructor(
     @InjectRepository(Device) private repo: Repository<Device>,
     @InjectRepository(Client) private clients: Repository<Client>,
+    @InjectRepository(Organization) private orgs: Repository<Organization>,
+    private snmp: SnmpService,
+    private crypto: CryptoService,
     private audit: AuditService,
   ) {}
 
@@ -537,10 +551,23 @@ export class DevicesController {
     return d;
   }
 
+  @Post(':id/check') @HttpCode(200)
+  async check(@Param('id', uuid()) id: string, @Org() orgId: string) {
+    if (!(await this.repo.exist({ where: { id, ...devScope(orgId) } }))) throw new NotFoundException();
+    return this.snmp.check(id);
+  }
+
   @Post() @Roles('admin', 'engineer')
   async create(@Body() dto: CreateDeviceDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
     if (!(await this.clients.exist({ where: { id: dto.clientId, organizationId: orgId } }))) throw new BadRequestException('Unknown client');
-    const d = await this.repo.save(this.repo.create(dto));
+    const org = await this.orgs.findOneOrFail({ where: { id: orgId } });
+    if ((await this.repo.count({ where: devScope(orgId) })) >= org.maxDevices) {
+      throw new ForbiddenException(`Device limit reached (${org.maxDevices}). Ask the platform administrator to raise it.`);
+    }
+    const { snmpCommunity, ...rest } = dto;
+    if (rest.snmpEnabled) assertSnmpHost(rest.host);
+    const d = await this.repo.save(this.repo.create({ ...rest, ...(snmpCommunity ? { snmpCommunityEnc: this.crypto.encrypt(snmpCommunity) } : {}) }));
+    delete (d as Partial<Device>).snmpCommunityEnc;
     await this.audit.log(ctx, 'create', 'device', d.id, `${d.name} (${d.type})`);
     return d;
   }
@@ -549,8 +576,13 @@ export class DevicesController {
   async update(@Param('id', uuid()) id: string, @Body() dto: UpdateDeviceDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
     const d = await this.repo.findOne({ where: { id, ...devScope(orgId) } });
     if (!d) throw new NotFoundException();
-    const { clientId: _ignored, ...rest } = dto;
-    await this.repo.save(Object.assign(d, rest));
+    const { clientId: _ignored, snmpCommunity, ...rest } = dto;
+    Object.assign(d, rest);
+    if (snmpCommunity) d.snmpCommunityEnc = this.crypto.encrypt(snmpCommunity);
+    if (d.snmpEnabled) assertSnmpHost(d.host);
+    else { d.status = null; d.statusInfo = null; d.statusCheckedAt = null; }
+    await this.repo.save(d);
+    delete (d as Partial<Device>).snmpCommunityEnc;
     await this.audit.log(ctx, 'update', 'device', id, d.name);
     return d;
   }

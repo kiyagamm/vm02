@@ -35,6 +35,8 @@ export class CreateOrgDto {
 }
 export class UpdateOrgDto {
   @IsOptional() @IsString() @Length(1, 100) name?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(100000) maxUsers?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(1000000) maxDevices?: number;
 }
 export class SetUserOrgsDto {
   @IsArray() @ArrayMinSize(1) @IsUUID(undefined, { each: true }) organizationIds: string[];
@@ -83,6 +85,10 @@ export class CreateDeviceDto {
   @IsOptional() @IsDateString() deploymentDate?: string | null;
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
+  @IsOptional() @IsBoolean() snmpEnabled?: boolean;
+  @IsOptional() @IsIn(['1', '2c']) snmpVersion?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(65535) snmpPort?: number | null;
+  @IsOptional() @IsString() @Length(0, 200) snmpCommunity?: string;
 }
 export class UpdateDeviceDto extends PartialType(CreateDeviceDto) {}
 

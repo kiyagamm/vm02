@@ -1,5 +1,5 @@
 import { Component, inject, input, OnInit, signal } from '@angular/core';
-import { JsonPipe, NgTemplateOutlet, UpperCasePipe } from '@angular/common';
+import { DatePipe, JsonPipe, NgTemplateOutlet, UpperCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { forkJoin, map, of, switchMap } from 'rxjs';
@@ -8,7 +8,7 @@ import { CredentialsComponent } from './credentials.component';
 
 @Component({
   selector: 'app-client-detail',
-  imports: [FormsModule, JsonPipe, NgTemplateOutlet, UpperCasePipe, RouterLink, CredentialsComponent],
+  imports: [FormsModule, DatePipe, JsonPipe, NgTemplateOutlet, UpperCasePipe, RouterLink, CredentialsComponent],
   template: `
     <p class="no-print"><a routerLink="/">← Clients</a></p>
     @if (client(); as c) {
@@ -54,6 +54,12 @@ import { CredentialsComponent } from './credentials.component';
             <label>Platform <input name="platform" [(ngModel)]="f.platform" placeholder="Proxmox, VMware, Hyper-V" /></label>
           }
           <label>Notes <input name="notes" [(ngModel)]="f.notes" /></label>
+          <label class="check"><input type="checkbox" name="snmpOn" [(ngModel)]="f.snmpEnabled" /> Monitor status with SNMP (needs the IP / host above)</label>
+          @if (f.snmpEnabled) {
+            <label>SNMP version <select name="snmpV" [(ngModel)]="f.snmpVersion"><option value="2c">v2c</option><option value="1">v1</option></select></label>
+            <label>SNMP port <input name="snmpP" type="number" [(ngModel)]="f.snmpPort" placeholder="161" /></label>
+            <label>Community string <input name="snmpC" type="password" autocomplete="new-password" [(ngModel)]="f.snmpCommunity" [placeholder]="f.id ? 'Leave blank to keep current' : 'public'" /></label>
+          }
           <div><button>Save</button> <button type="button" (click)="deviceForm.set(null)">Cancel</button></div>
         </form>
       }
@@ -63,6 +69,7 @@ import { CredentialsComponent } from './credentials.component';
           <div class="row clickable" (click)="toggle('d' + d.id)">
             <span>{{ open().has('d' + d.id) ? '▾' : '▸' }}</span>
             <strong>{{ d.name }}</strong> <span class="tag">{{ d.type | uppercase }}{{ d.platform ? ': ' + d.platform : '' }}</span>
+            @if (d.snmpEnabled) { <span class="status" [class.up]="d.status === 'up'" [class.down]="d.status === 'down'">{{ d.status ? (d.status | uppercase) : 'PENDING' }}</span> }
             <code>{{ d.host }}{{ d.port ? ':' + d.port : '' }}</code> <span class="muted">{{ d.brand }} {{ d.model }} {{ d.os }}</span>
             @if (d.location) { <span class="muted">· {{ d.location }}</span> }
             @if (d.deploymentDate) { <span class="muted">· deployed {{ d.deploymentDate }}</span> }
@@ -74,6 +81,19 @@ import { CredentialsComponent } from './credentials.component';
           @if (open().has('d' + d.id)) {
             <div class="body">
               @if (d.notes) { <p>{{ d.notes }}</p> }
+              @if (d.snmpEnabled) {
+                <div class="row">
+                  <strong>SNMP status:</strong>
+                  <span class="status" [class.up]="d.status === 'up'" [class.down]="d.status === 'down'">{{ d.status ? (d.status | uppercase) : 'PENDING' }}</span>
+                  @if (d.statusInfo?.uptime) { <span class="muted">uptime {{ d.statusInfo?.uptime }}</span> }
+                  @if (d.statusInfo?.sysName) { <span class="muted">· {{ d.statusInfo?.sysName }}</span> }
+                  @if (d.statusInfo?.error) { <span class="muted">· {{ d.statusInfo?.error }}</span> }
+                  @if (d.statusCheckedAt) { <span class="muted">· checked {{ d.statusCheckedAt | date: 'medium' }}</span> }
+                  <span class="spacer"></span>
+                  <button class="sm" (click)="checkNow(d)">Check now</button>
+                </div>
+                @if (d.statusInfo?.sysDescr) { <p class="muted">{{ d.statusInfo?.sysDescr }}</p> }
+              }
               @if (hasMeta(d.metadata)) { <pre>{{ d.metadata | json }}</pre> }
               <app-credentials [deviceId]="d.id" />
 
@@ -248,7 +268,10 @@ export class ClientDetailComponent implements OnInit {
   editDevice(d: Device) { this.deviceForm.set({ ...d }); }
   saveDevice() {
     const f = this.deviceForm()!;
-    this.api.saveDevice({ ...f, port: f.port ? Number(f.port) : undefined, deploymentDate: f.deploymentDate || null }).subscribe(this.done);
+    this.api.saveDevice({ ...f, port: f.port ? Number(f.port) : undefined, snmpPort: f.snmpPort ? Number(f.snmpPort) : null, snmpCommunity: f.snmpCommunity || undefined, deploymentDate: f.deploymentDate || null }).subscribe(this.done);
+  }
+  checkNow(d: Device) {
+    this.api.checkDevice(d.id).subscribe({ next: () => this.load(), error: (e) => { this.error.set(errMsg(e)); this.load(); } });
   }
   deleteDevice(d: Device) {
     if (confirm(`Delete ${d.name} and everything under it?`)) this.api.deleteDevice(d.id).subscribe(this.done);

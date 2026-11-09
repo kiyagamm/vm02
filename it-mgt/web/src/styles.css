@@ -104,3 +104,7 @@ label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 14p
 .stat b { font-size: 30px; }
 .stat span { color: #6b7385; }
 label.inline { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; margin-right: 10px; }
+
+.status { font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #94a3b8; color: #fff; }
+.status.up { background: #16a34a; }
+.status.down { background: #dc2626; }
