@@ -1,13 +1,13 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, UpperCasePipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Api, Client, Device, Snippet, errMsg } from './api';
+import { Api, Client, DEVICE_TYPES, Device, Snippet, errMsg } from './api';
 
 const MAX_FILE = 200_000;
 
 @Component({
   selector: 'app-snippets',
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, UpperCasePipe],
   template: `
     <div class="row">
       <h1>Device Configuration Snippets</h1>
@@ -24,12 +24,37 @@ const MAX_FILE = 200_000;
             @for (c of clients(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
           </select>
         </label>
+        @if (!s.id) {
+          <div>
+            <button type="button" class="sm" (click)="quick.set(quick() === 'client' ? '' : 'client')">+ New client</button>
+            <button type="button" class="sm" [disabled]="!s.clientId" (click)="quick.set(quick() === 'device' ? '' : 'device')">+ New device</button>
+          </div>
+        }
+        @if (quick() === 'client') {
+          <div class="card">
+            <label>Client name <input name="qcn" [(ngModel)]="newClient.name" maxlength="200" /></label>
+            <label>Contact <input name="qcc" [(ngModel)]="newClient.contact" /></label>
+            <div><button type="button" (click)="addClient()">Add client</button> <button type="button" (click)="quick.set('')">Cancel</button></div>
+          </div>
+        }
         <label>Device
           <select name="d" [(ngModel)]="s.deviceId" required [disabled]="!s.clientId">
             <option value="" disabled>Select device…</option>
             @for (d of devices(); track d.id) { <option [value]="d.id">{{ d.name }}</option> }
           </select>
         </label>
+        @if (quick() === 'device') {
+          <div class="card">
+            <label>Device name <input name="qdn" [(ngModel)]="newDevice.name" maxlength="200" /></label>
+            <label>Type
+              <select name="qdt" [(ngModel)]="newDevice.type">
+                @for (t of types; track t) { <option [value]="t">{{ t | uppercase }}</option> }
+              </select>
+            </label>
+            <label>Host / IP <input name="qdh" [(ngModel)]="newDevice.host" /></label>
+            <div><button type="button" (click)="addDevice()">Add device</button> <button type="button" (click)="quick.set('')">Cancel</button></div>
+          </div>
+        }
         <label>Snippet name <input name="n" [(ngModel)]="s.name" required maxlength="200" /></label>
         <label>Load from file <input type="file" (change)="onFile($event, s)" /></label>
         <label>Configuration
@@ -72,6 +97,43 @@ export class SnippetsComponent implements OnInit {
   editing = signal<Partial<Snippet> | null>(null);
   openId = signal('');
   error = signal('');
+  quick = signal<'' | 'client' | 'device'>('');
+  readonly types = DEVICE_TYPES;
+  newClient: Partial<Client> = { name: '', contact: '' };
+  newDevice: Partial<Device> = { name: '', type: 'server', host: '' };
+
+  addClient() {
+    const name = (this.newClient.name ?? '').trim();
+    if (!name) { this.error.set('Client name is required'); return; }
+    const contact = (this.newClient.contact ?? '').trim();
+    this.api.saveClient({ name, ...(contact && { contact }) }).subscribe({
+      next: (c) => {
+        this.error.set('');
+        this.clients.update((l) => [...l, c]);
+        this.pickClient(c.id);
+        this.newClient = { name: '', contact: '' };
+        this.quick.set('');
+      },
+      error: (e) => this.error.set(errMsg(e)),
+    });
+  }
+
+  addDevice() {
+    const clientId = this.editing()?.clientId;
+    const name = (this.newDevice.name ?? '').trim();
+    if (!clientId || !name) { this.error.set('Device name is required'); return; }
+    const host = (this.newDevice.host ?? '').trim();
+    this.api.saveDevice({ clientId, name, type: this.newDevice.type, ...(host && { host }) }).subscribe({
+      next: (d) => {
+        this.error.set('');
+        this.devices.update((l) => [...l, d]);
+        this.editing.update((s) => s && { ...s, deviceId: d.id });
+        this.newDevice = { name: '', type: 'server', host: '' };
+        this.quick.set('');
+      },
+      error: (e) => this.error.set(errMsg(e)),
+    });
+  }
 
   ngOnInit() {
     this.load();
