@@ -1,53 +1,92 @@
 import {
   BadRequestException, Body, Controller, Delete, ForbiddenException, Get, HttpCode, NotFoundException,
-  Param, ParseUUIDPipe, Post, Put, Query, Res, UnauthorizedException, BadGatewayException,
+  Param, ParseUUIDPipe, Post, Put, Query, Req, Res, UnauthorizedException, BadGatewayException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
-import type { Response } from 'express';
-import { ILike, Repository } from 'typeorm';
+import type { Request, Response } from 'express';
+import { ILike, In, Repository } from 'typeorm';
 import { AuditService } from './audit.service';
-import { AuthUser, Ctx, CurrentUser, Public, ReqCtx, Roles } from './auth';
+import { AuthUser, Ctx, CurrentUser, Org, Public, ReqCtx, Roles } from './auth';
 import { checkCommand } from './command-policy';
 import { CryptoService } from './crypto.service';
 import {
-  CreateClientDto, CreateCredentialDto, CreateDeviceDto, CreateSnippetDto, CreateUserDto, CreateVmDto, ExecDto, LoginDto,
-  UpdateBrandingDto, UpdateClientDto, UpdateCredentialDto, UpdateDeviceDto, UpdateProfileDto, UpdateSnippetDto, UpdateUserDto, UpdateVmDto,
+  CreateClientDto, CreateCredentialDto, CreateDeviceDto, CreateOrgDto, CreateSnippetDto, CreateUserDto, CreateVmDto, ExecDto, LoginDto,
+  SetUserOrgsDto, SwitchOrgDto, UpdateBrandingDto, UpdateClientDto, UpdateCredentialDto, UpdateDeviceDto, UpdateOrgDto, UpdateProfileDto,
+  UpdateSnippetDto, UpdateUserDto, UpdateVmDto,
 } from './dto';
-import { AppSetting, AuditLog, Client, ConfigSnippet, Credential, Device, User, Vm } from './entities';
+import { AuditLog, Client, ConfigSnippet, Credential, Device, Organization, User, Vm } from './entities';
 import { SshService } from './ssh.service';
 
 const uuid = () => new ParseUUIDPipe();
-const strip = (u: User) => ({ id: u.id, username: u.username, role: u.role, active: u.active, createdAt: u.createdAt });
+const strip = (u: User) => ({
+  id: u.id, username: u.username, role: u.role, active: u.active, isSuperAdmin: u.isSuperAdmin, createdAt: u.createdAt,
+  ...(u.organizations ? { organizations: u.organizations.map((o) => ({ id: o.id, name: o.name })) } : {}),
+});
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c);
+
+// Org-scoping filters: everything hangs off a client, and clients belong to one organisation.
+const devScope = (orgId: string) => ({ client: { organizationId: orgId } });
+const vmScope = (orgId: string) => ({ device: devScope(orgId) });
+const credScope = (orgId: string) => [{ device: devScope(orgId) }, { vm: vmScope(orgId) }];
+const requireSuper = (u: AuthUser) => { if (!u.isSuperAdmin) throw new ForbiddenException('Super admin only'); };
 
 @Controller('auth')
 export class AuthController {
   constructor(
     @InjectRepository(User) private users: Repository<User>,
+    @InjectRepository(Organization) private orgs: Repository<Organization>,
     private jwt: JwtService,
     private audit: AuditService,
   ) {}
 
+  private orgsFor(u: User): Promise<Organization[]> {
+    return u.isSuperAdmin ? this.orgs.find({ order: { name: 'ASC' } }) : Promise.resolve([...u.organizations].sort((a, b) => a.name.localeCompare(b.name)));
+  }
+
+  private async session(u: User, org: Organization) {
+    const token = await this.jwt.signAsync({ sub: u.id, username: u.username, role: u.role, org: org.id });
+    const organizations = (await this.orgsFor(u)).map((o) => ({ id: o.id, name: o.name }));
+    return { token, user: { ...strip(u), organization: { id: org.id, name: org.name }, organizations } };
+  }
+
   @Public() @Post('login') @HttpCode(200)
   async login(@Body() dto: LoginDto, @Ctx() ctx: ReqCtx) {
-    const user = await this.users.findOne({ where: { username: dto.username } });
+    const user = await this.users.findOne({ where: { username: dto.username }, relations: { organizations: true } });
     const ok = user && user.active && (await bcrypt.compare(dto.password, user.passwordHash));
     if (!ok) {
       await this.audit.log({ ...ctx, username: dto.username }, 'login-failed', 'user');
       throw new UnauthorizedException('Invalid credentials');
     }
-    await this.audit.log({ ...ctx, userId: user.id, username: user.username }, 'login', 'user', user.id);
-    const token = await this.jwt.signAsync({ sub: user.id, username: user.username, role: user.role });
-    return { token, user: strip(user) };
+    const available = await this.orgsFor(user);
+    if (available.length === 0) throw new ForbiddenException('This user does not belong to any organisation');
+    const org = dto.organizationId ? available.find((o) => o.id === dto.organizationId) : available.length === 1 ? available[0] : undefined;
+    if (dto.organizationId && !org) throw new ForbiddenException('You do not have access to that organisation');
+    // Several organisations and none chosen yet: let the client pick one and resubmit.
+    if (!org) return { organizations: available.map((o) => ({ id: o.id, name: o.name })) };
+    await this.audit.log({ ...ctx, userId: user.id, username: user.username, orgId: org.id }, 'login', 'user', user.id);
+    return this.session(user, org);
   }
 
-  @Get('me') me(@CurrentUser() u: AuthUser) { return u; }
+  @Post('switch') @HttpCode(200)
+  async switchOrg(@Body() dto: SwitchOrgDto, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    const user = await this.users.findOneOrFail({ where: { id: me.id }, relations: { organizations: true } });
+    const org = (await this.orgsFor(user)).find((o) => o.id === dto.organizationId);
+    if (!org) throw new ForbiddenException('You do not have access to that organisation');
+    await this.audit.log({ ...ctx, orgId: org.id }, 'login', 'user', user.id, `switched to ${org.name}`);
+    return this.session(user, org);
+  }
+
+  @Get('me') async me(@CurrentUser() me: AuthUser) {
+    const user = await this.users.findOneOrFail({ where: { id: me.id }, relations: { organizations: true } });
+    const org = await this.orgs.findOneOrFail({ where: { id: me.orgId } });
+    return (await this.session(user, org)).user;
+  }
 
   @Put('me')
   async updateMe(@Body() dto: UpdateProfileDto, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
-    const u = await this.users.findOne({ where: { id: me.id } });
+    const u = await this.users.findOne({ where: { id: me.id }, relations: { organizations: true } });
     if (!u || !(await bcrypt.compare(dto.currentPassword, u.passwordHash))) {
       throw new BadRequestException('Current password is incorrect');
     }
@@ -58,28 +97,101 @@ export class AuthController {
     if (dto.newPassword) u.passwordHash = await bcrypt.hash(dto.newPassword, 12);
     await this.users.save(u);
     await this.audit.log({ ...ctx, username: u.username }, 'update', 'user', u.id, `profile: ${Object.keys(dto).filter((k) => k !== 'currentPassword').join(',')}`);
-    return strip(u);
+    const org = await this.orgs.findOneOrFail({ where: { id: me.orgId } });
+    return (await this.session(u, org)).user;
+  }
+}
+
+@Controller('organizations')
+export class OrganizationsController {
+  constructor(
+    @InjectRepository(Organization) private repo: Repository<Organization>,
+    @InjectRepository(Client) private clients: Repository<Client>,
+    @InjectRepository(User) private users: Repository<User>,
+    private audit: AuditService,
+  ) {}
+
+  @Get() async list(@CurrentUser() me: AuthUser) {
+    requireSuper(me);
+    const rows = await this.repo.find({ order: { name: 'ASC' } });
+    return Promise.all(rows.map(async (o) => ({
+      id: o.id, name: o.name, createdAt: o.createdAt,
+      clientCount: await this.clients.count({ where: { organizationId: o.id } }),
+      userCount: await this.users.count({ where: { organizations: { id: o.id } } }),
+    })));
+  }
+
+  @Post() async create(@Body() dto: CreateOrgDto, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    const name = dto.name.trim();
+    if (!name) throw new BadRequestException('Name is required');
+    if (await this.repo.findOne({ where: { name } })) throw new BadRequestException('Organisation name already exists');
+    const o = await this.repo.save(this.repo.create({ name, logo: null }));
+    const u = await this.users.findOneOrFail({ where: { id: me.id }, relations: { organizations: true } });
+    u.organizations.push(o);
+    await this.users.save(u);
+    await this.audit.log(ctx, 'create', 'organization', o.id, o.name);
+    return { id: o.id, name: o.name };
+  }
+
+  @Put(':id') async update(@Param('id', uuid()) id: string, @Body() dto: UpdateOrgDto, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    const o = await this.repo.findOne({ where: { id } });
+    if (!o) throw new NotFoundException();
+    const name = dto.name?.trim();
+    if (name && name !== o.name) {
+      if (await this.repo.findOne({ where: { name } })) throw new BadRequestException('Organisation name already exists');
+      o.name = name;
+      await this.repo.save(o);
+    }
+    await this.audit.log(ctx, 'update', 'organization', id, o.name);
+    return { id: o.id, name: o.name };
+  }
+
+  @Delete(':id') @HttpCode(204)
+  async remove(@Param('id', uuid()) id: string, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    if (id === me.orgId) throw new BadRequestException('Switch to another organisation before deleting this one');
+    const o = await this.repo.findOne({ where: { id } });
+    if (!o) throw new NotFoundException();
+    if (await this.clients.exist({ where: { organizationId: id } })) throw new BadRequestException('Delete or move this organisation\'s clients first');
+    await this.repo.remove(o);
+    await this.audit.log(ctx, 'delete', 'organization', id, o.name);
   }
 }
 
 @Controller('settings')
 export class SettingsController {
-  constructor(@InjectRepository(AppSetting) private repo: Repository<AppSetting>, private audit: AuditService) {}
+  constructor(
+    @InjectRepository(Organization) private orgs: Repository<Organization>,
+    private jwt: JwtService,
+    private audit: AuditService,
+  ) {}
 
+  /** Public so the login page can show a logo; uses the caller's organisation when a valid token is sent. */
   @Public() @Get('branding')
-  async branding() {
-    const rows = await this.repo.find({ where: [{ key: 'logo' }, { key: 'companyName' }] });
-    const get = (k: string) => rows.find((r) => r.key === k)?.value ?? null;
-    return { logo: get('logo'), companyName: get('companyName') };
+  async branding(@Req() req: Request) {
+    const header = req.headers['authorization'] ?? '';
+    let orgId: string | undefined;
+    if (header.startsWith('Bearer ')) {
+      try { orgId = (await this.jwt.verifyAsync<{ org?: string }>(header.slice(7))).org; } catch { /* anonymous */ }
+    }
+    const org = (orgId && (await this.orgs.findOne({ where: { id: orgId } }))) || (await this.orgs.find({ order: { createdAt: 'ASC' }, take: 1 }))[0];
+    return { logo: org?.logo ?? null, companyName: org?.name ?? null };
   }
 
   @Put('branding') @Roles('admin')
-  async updateBranding(@Body() dto: UpdateBrandingDto, @Ctx() ctx: ReqCtx) {
-    for (const key of ['logo', 'companyName'] as const) {
-      if (dto[key] !== undefined) await this.repo.save({ key, value: dto[key] || null });
+  async updateBranding(@Body() dto: UpdateBrandingDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const org = await this.orgs.findOneOrFail({ where: { id: orgId } });
+    if (dto.logo !== undefined) org.logo = dto.logo || null;
+    const name = dto.companyName?.trim();
+    if (name && name !== org.name) {
+      if (await this.orgs.findOne({ where: { name } })) throw new BadRequestException('Organisation name already exists');
+      org.name = name;
     }
+    await this.orgs.save(org);
     await this.audit.log(ctx, 'update', 'settings', undefined, `branding: ${Object.keys(dto).join(',')}`);
-    return this.branding();
+    return { logo: org.logo, companyName: org.name };
   }
 }
 
@@ -91,17 +203,17 @@ export class SnippetsController {
     private audit: AuditService,
   ) {}
 
-  @Get() list(@Query('clientId') clientId?: string, @Query('deviceId') deviceId?: string) {
+  @Get() list(@Org() orgId: string, @Query('clientId') clientId?: string, @Query('deviceId') deviceId?: string) {
     return this.repo.find({
-      where: { ...(clientId ? { clientId } : {}), ...(deviceId ? { deviceId } : {}) },
+      where: { client: { organizationId: orgId }, ...(clientId ? { clientId } : {}), ...(deviceId ? { deviceId } : {}) },
       relations: { client: true, device: true },
       order: { name: 'ASC' },
     });
   }
 
   @Post()
-  async create(@Body() dto: CreateSnippetDto, @Ctx() ctx: ReqCtx) {
-    const dev = await this.devices.findOne({ where: { id: dto.deviceId } });
+  async create(@Body() dto: CreateSnippetDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const dev = await this.devices.findOne({ where: { id: dto.deviceId, ...devScope(orgId) } });
     if (!dev || dev.clientId !== dto.clientId) throw new BadRequestException('Device does not belong to that client');
     const s = await this.repo.save(this.repo.create(dto));
     await this.audit.log(ctx, 'create', 'config-snippet', s.id, `${s.name} (${dev.name})`);
@@ -109,11 +221,11 @@ export class SnippetsController {
   }
 
   @Put(':id')
-  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateSnippetDto, @Ctx() ctx: ReqCtx) {
-    const s = await this.repo.findOne({ where: { id } });
+  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateSnippetDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const s = await this.repo.findOne({ where: { id, client: { organizationId: orgId } } });
     if (!s) throw new NotFoundException();
     if (dto.deviceId) {
-      const dev = await this.devices.findOne({ where: { id: dto.deviceId } });
+      const dev = await this.devices.findOne({ where: { id: dto.deviceId, ...devScope(orgId) } });
       if (!dev || dev.clientId !== s.clientId) throw new BadRequestException('Device does not belong to the snippet client');
     }
     await this.repo.save(Object.assign(s, dto));
@@ -122,8 +234,8 @@ export class SnippetsController {
   }
 
   @Delete(':id') @HttpCode(204)
-  async remove(@Param('id', uuid()) id: string, @Ctx() ctx: ReqCtx) {
-    const s = await this.repo.findOne({ where: { id } });
+  async remove(@Param('id', uuid()) id: string, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const s = await this.repo.findOne({ where: { id, client: { organizationId: orgId } } });
     if (!s) throw new NotFoundException();
     await this.repo.remove(s);
     await this.audit.log(ctx, 'delete', 'config-snippet', id, s.name);
@@ -132,22 +244,50 @@ export class SnippetsController {
 
 @Controller('users') @Roles('admin')
 export class UsersController {
-  constructor(@InjectRepository(User) private repo: Repository<User>, private audit: AuditService) {}
+  constructor(
+    @InjectRepository(User) private repo: Repository<User>,
+    @InjectRepository(Organization) private orgs: Repository<Organization>,
+    private audit: AuditService,
+  ) {}
 
-  @Get() async list() { return (await this.repo.find({ order: { username: 'ASC' } })).map(strip); }
+  private async member(id: string, orgId: string, me: AuthUser) {
+    const u = await this.repo.findOne({ where: { id, organizations: { id: orgId } } });
+    if (!u) throw new NotFoundException();
+    if (u.isSuperAdmin && !me.isSuperAdmin) throw new ForbiddenException('Only a super admin can modify a super admin');
+    return this.repo.findOneOrFail({ where: { id }, relations: { organizations: true } });
+  }
 
-  @Post() async create(@Body() dto: CreateUserDto, @Ctx() ctx: ReqCtx) {
+  @Get() async list(@Org() orgId: string) {
+    const rows = await this.repo.find({ where: { organizations: { id: orgId } }, order: { username: 'ASC' } });
+    const full = await this.repo.find({ where: { id: In(rows.map((r) => r.id)) }, relations: { organizations: true }, order: { username: 'ASC' } });
+    return full.map(strip);
+  }
+
+  @Post() async create(@Body() dto: CreateUserDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
     if (await this.repo.findOne({ where: { username: dto.username } })) throw new BadRequestException('Username taken');
+    const org = await this.orgs.findOneOrFail({ where: { id: orgId } });
     const u = await this.repo.save(this.repo.create({
-      username: dto.username, role: dto.role as User['role'], passwordHash: await bcrypt.hash(dto.password, 12),
+      username: dto.username, role: dto.role as User['role'], passwordHash: await bcrypt.hash(dto.password, 12), organizations: [org],
     }));
     await this.audit.log(ctx, 'create', 'user', u.id, `${u.username} (${u.role})`);
     return strip(u);
   }
 
-  @Put(':id') async update(@Param('id', uuid()) id: string, @Body() dto: UpdateUserDto, @Ctx() ctx: ReqCtx, @CurrentUser() me: AuthUser) {
-    const u = await this.repo.findOne({ where: { id } });
+  @Put(':id/organizations')
+  async setOrgs(@Param('id', uuid()) id: string, @Body() dto: SetUserOrgsDto, @CurrentUser() me: AuthUser, @Ctx() ctx: ReqCtx) {
+    requireSuper(me);
+    const u = await this.repo.findOne({ where: { id }, relations: { organizations: true } });
     if (!u) throw new NotFoundException();
+    const orgs = await this.orgs.find({ where: { id: In(dto.organizationIds) } });
+    if (orgs.length !== new Set(dto.organizationIds).size) throw new BadRequestException('Unknown organisation');
+    u.organizations = orgs;
+    await this.repo.save(u);
+    await this.audit.log(ctx, 'update', 'user', id, `${u.username}: organisations ${orgs.map((o) => o.name).join(', ')}`);
+    return strip(u);
+  }
+
+  @Put(':id') async update(@Param('id', uuid()) id: string, @Body() dto: UpdateUserDto, @Org() orgId: string, @Ctx() ctx: ReqCtx, @CurrentUser() me: AuthUser) {
+    const u = await this.member(id, orgId, me);
     if (id === me.id && (dto.active === false || (dto.role && dto.role !== 'admin'))) {
       throw new BadRequestException('You cannot demote or deactivate yourself');
     }
@@ -163,11 +303,17 @@ export class UsersController {
     return strip(u);
   }
 
+  /** Removes the user from this organisation; the account itself is deleted once it belongs to none. */
   @Delete(':id') @HttpCode(204)
-  async remove(@Param('id', uuid()) id: string, @Ctx() ctx: ReqCtx, @CurrentUser() me: AuthUser) {
+  async remove(@Param('id', uuid()) id: string, @Org() orgId: string, @Ctx() ctx: ReqCtx, @CurrentUser() me: AuthUser) {
     if (id === me.id) throw new BadRequestException('You cannot delete yourself');
-    const u = await this.repo.findOne({ where: { id } });
-    if (!u) throw new NotFoundException();
+    const u = await this.member(id, orgId, me);
+    u.organizations = u.organizations.filter((o) => o.id !== orgId);
+    if (u.organizations.length > 0 || u.isSuperAdmin) {
+      await this.repo.save(u);
+      await this.audit.log(ctx, 'update', 'user', id, `${u.username}: removed from organisation`);
+      return;
+    }
     await this.repo.remove(u);
     await this.audit.log(ctx, 'delete', 'user', id, u.username);
   }
@@ -181,29 +327,30 @@ export class ClientsController {
     private audit: AuditService,
   ) {}
 
-  @Get() async list() {
+  @Get() async list(@Org() orgId: string) {
     const rows = await this.repo.createQueryBuilder('c')
+      .where('c.organizationId = :orgId', { orgId })
       .loadRelationCountAndMap('c.deviceCount', 'c.devices').orderBy('c.name').getMany();
     return rows;
   }
 
-  @Get(':id') async one(@Param('id', uuid()) id: string) {
-    const c = await this.repo.findOne({ where: { id } });
+  @Get(':id') async one(@Param('id', uuid()) id: string, @Org() orgId: string) {
+    const c = await this.repo.findOne({ where: { id, organizationId: orgId } });
     if (!c) throw new NotFoundException();
     const devices = await this.devices.find({ where: { clientId: id }, relations: { vms: true }, order: { name: 'ASC' } });
     return { ...c, devices };
   }
 
   @Post() @Roles('admin', 'engineer')
-  async create(@Body() dto: CreateClientDto, @Ctx() ctx: ReqCtx) {
-    const c = await this.repo.save(this.repo.create(dto));
+  async create(@Body() dto: CreateClientDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const c = await this.repo.save(this.repo.create({ ...dto, organizationId: orgId }));
     await this.audit.log(ctx, 'create', 'client', c.id, c.name);
     return c;
   }
 
   @Put(':id') @Roles('admin', 'engineer')
-  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateClientDto, @Ctx() ctx: ReqCtx) {
-    const c = await this.repo.findOne({ where: { id } });
+  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateClientDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const c = await this.repo.findOne({ where: { id, organizationId: orgId } });
     if (!c) throw new NotFoundException();
     await this.repo.save(Object.assign(c, dto));
     await this.audit.log(ctx, 'update', 'client', id, c.name);
@@ -211,8 +358,8 @@ export class ClientsController {
   }
 
   @Delete(':id') @Roles('admin') @HttpCode(204)
-  async remove(@Param('id', uuid()) id: string, @Ctx() ctx: ReqCtx) {
-    const c = await this.repo.findOne({ where: { id } });
+  async remove(@Param('id', uuid()) id: string, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const c = await this.repo.findOne({ where: { id, organizationId: orgId } });
     if (!c) throw new NotFoundException();
     await this.repo.remove(c);
     await this.audit.log(ctx, 'delete', 'client', id, c.name);
@@ -227,27 +374,27 @@ export class DevicesController {
     private audit: AuditService,
   ) {}
 
-  @Get() list(@Query('clientId') clientId?: string) {
-    return this.repo.find({ where: clientId ? { clientId } : {}, relations: { vms: true }, order: { name: 'ASC' } });
+  @Get() list(@Org() orgId: string, @Query('clientId') clientId?: string) {
+    return this.repo.find({ where: { ...(clientId ? { clientId } : {}), ...devScope(orgId) }, relations: { vms: true }, order: { name: 'ASC' } });
   }
 
-  @Get(':id') async one(@Param('id', uuid()) id: string) {
-    const d = await this.repo.findOne({ where: { id }, relations: { vms: true } });
+  @Get(':id') async one(@Param('id', uuid()) id: string, @Org() orgId: string) {
+    const d = await this.repo.findOne({ where: { id, ...devScope(orgId) }, relations: { vms: true } });
     if (!d) throw new NotFoundException();
     return d;
   }
 
   @Post() @Roles('admin', 'engineer')
-  async create(@Body() dto: CreateDeviceDto, @Ctx() ctx: ReqCtx) {
-    if (!(await this.clients.exist({ where: { id: dto.clientId } }))) throw new BadRequestException('Unknown client');
+  async create(@Body() dto: CreateDeviceDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    if (!(await this.clients.exist({ where: { id: dto.clientId, organizationId: orgId } }))) throw new BadRequestException('Unknown client');
     const d = await this.repo.save(this.repo.create(dto));
     await this.audit.log(ctx, 'create', 'device', d.id, `${d.name} (${d.type})`);
     return d;
   }
 
   @Put(':id') @Roles('admin', 'engineer')
-  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateDeviceDto, @Ctx() ctx: ReqCtx) {
-    const d = await this.repo.findOne({ where: { id } });
+  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateDeviceDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const d = await this.repo.findOne({ where: { id, ...devScope(orgId) } });
     if (!d) throw new NotFoundException();
     const { clientId: _ignored, ...rest } = dto;
     await this.repo.save(Object.assign(d, rest));
@@ -256,8 +403,8 @@ export class DevicesController {
   }
 
   @Delete(':id') @Roles('admin') @HttpCode(204)
-  async remove(@Param('id', uuid()) id: string, @Ctx() ctx: ReqCtx) {
-    const d = await this.repo.findOne({ where: { id } });
+  async remove(@Param('id', uuid()) id: string, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const d = await this.repo.findOne({ where: { id, ...devScope(orgId) } });
     if (!d) throw new NotFoundException();
     await this.repo.remove(d);
     await this.audit.log(ctx, 'delete', 'device', id, d.name);
@@ -272,13 +419,13 @@ export class VmsController {
     private audit: AuditService,
   ) {}
 
-  @Get() list(@Query('deviceId') deviceId?: string) {
-    return this.repo.find({ where: deviceId ? { deviceId } : {}, order: { name: 'ASC' } });
+  @Get() list(@Org() orgId: string, @Query('deviceId') deviceId?: string) {
+    return this.repo.find({ where: { ...(deviceId ? { deviceId } : {}), ...vmScope(orgId) }, order: { name: 'ASC' } });
   }
 
   @Post() @Roles('admin', 'engineer')
-  async create(@Body() dto: CreateVmDto, @Ctx() ctx: ReqCtx) {
-    const host = await this.devices.findOne({ where: { id: dto.deviceId } });
+  async create(@Body() dto: CreateVmDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const host = await this.devices.findOne({ where: { id: dto.deviceId, ...devScope(orgId) } });
     if (!host) throw new BadRequestException('Unknown hypervisor');
     if (host.type !== 'hypervisor') throw new BadRequestException('VMs can only belong to a hypervisor');
     const v = await this.repo.save(this.repo.create(dto));
@@ -287,8 +434,8 @@ export class VmsController {
   }
 
   @Put(':id') @Roles('admin', 'engineer')
-  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateVmDto, @Ctx() ctx: ReqCtx) {
-    const v = await this.repo.findOne({ where: { id } });
+  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateVmDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const v = await this.repo.findOne({ where: { id, ...vmScope(orgId) } });
     if (!v) throw new NotFoundException();
     const { deviceId: _ignored, ...rest } = dto;
     await this.repo.save(Object.assign(v, rest));
@@ -297,8 +444,8 @@ export class VmsController {
   }
 
   @Delete(':id') @Roles('admin') @HttpCode(204)
-  async remove(@Param('id', uuid()) id: string, @Ctx() ctx: ReqCtx) {
-    const v = await this.repo.findOne({ where: { id } });
+  async remove(@Param('id', uuid()) id: string, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const v = await this.repo.findOne({ where: { id, ...vmScope(orgId) } });
     if (!v) throw new NotFoundException();
     await this.repo.remove(v);
     await this.audit.log(ctx, 'delete', 'vm', id, v.name);
@@ -320,17 +467,18 @@ export class CredentialsController {
     private audit: AuditService,
   ) {}
 
-  @Get() list(@Query('deviceId') deviceId?: string, @Query('vmId') vmId?: string) {
+  @Get() list(@Org() orgId: string, @Query('deviceId') deviceId?: string, @Query('vmId') vmId?: string) {
     if (!deviceId && !vmId) throw new BadRequestException('deviceId or vmId required');
-    return this.repo.find({ where: deviceId ? { deviceId } : { vmId }, order: { username: 'ASC' } }).then((r) => r.map(maskCred));
+    const target = deviceId ? { deviceId } : { vmId };
+    return this.repo.find({ where: credScope(orgId).map((s) => ({ ...target, ...s })), order: { username: 'ASC' } }).then((r) => r.map(maskCred));
   }
 
   @Post() @Roles('admin', 'engineer')
-  async create(@Body() dto: CreateCredentialDto, @Ctx() ctx: ReqCtx) {
+  async create(@Body() dto: CreateCredentialDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
     if (!!dto.deviceId === !!dto.vmId) throw new BadRequestException('Provide exactly one of deviceId or vmId');
     const exists = dto.deviceId
-      ? await this.devices.exist({ where: { id: dto.deviceId } })
-      : await this.vms.exist({ where: { id: dto.vmId } });
+      ? await this.devices.exist({ where: { id: dto.deviceId, ...devScope(orgId) } })
+      : await this.vms.exist({ where: { id: dto.vmId, ...vmScope(orgId) } });
     if (!exists) throw new BadRequestException('Unknown target');
     const c = await this.repo.save(this.repo.create({
       deviceId: dto.deviceId ?? null, vmId: dto.vmId ?? null, username: dto.username,
@@ -341,8 +489,8 @@ export class CredentialsController {
   }
 
   @Put(':id') @Roles('admin', 'engineer')
-  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateCredentialDto, @Ctx() ctx: ReqCtx) {
-    const c = await this.repo.findOne({ where: { id } });
+  async update(@Param('id', uuid()) id: string, @Body() dto: UpdateCredentialDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const c = await this.repo.findOne({ where: credScope(orgId).map((s) => ({ id, ...s })) });
     if (!c) throw new NotFoundException();
     const { password, ...rest } = dto;
     Object.assign(c, rest);
@@ -353,16 +501,16 @@ export class CredentialsController {
   }
 
   @Delete(':id') @Roles('admin') @HttpCode(204)
-  async remove(@Param('id', uuid()) id: string, @Ctx() ctx: ReqCtx) {
-    const c = await this.repo.findOne({ where: { id } });
+  async remove(@Param('id', uuid()) id: string, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
+    const c = await this.repo.findOne({ where: credScope(orgId).map((s) => ({ id, ...s })) });
     if (!c) throw new NotFoundException();
     await this.repo.remove(c);
     await this.audit.log(ctx, 'delete', 'credential', id, c.username);
   }
 
   @Post(':id/reveal') @Roles('admin', 'engineer') @HttpCode(200)
-  async reveal(@Param('id', uuid()) id: string, @Ctx() ctx: ReqCtx, @Res({ passthrough: true }) res: Response) {
-    const c = await this.repo.findOne({ where: { id } });
+  async reveal(@Param('id', uuid()) id: string, @Org() orgId: string, @Ctx() ctx: ReqCtx, @Res({ passthrough: true }) res: Response) {
+    const c = await this.repo.findOne({ where: credScope(orgId).map((s) => ({ id, ...s })) });
     if (!c) throw new NotFoundException();
     await this.audit.log(ctx, 'reveal-password', 'credential', id, c.username);
     res.setHeader('Cache-Control', 'no-store');
@@ -383,7 +531,7 @@ export class ExecController {
 
   @Post() @HttpCode(200)
   async run(@Body() dto: ExecDto, @Ctx() ctx: ReqCtx, @CurrentUser() user: AuthUser) {
-    const cred = await this.creds.findOne({ where: { id: dto.credentialId } });
+    const cred = await this.creds.findOne({ where: credScope(user.orgId).map((s) => ({ id: dto.credentialId, ...s })) });
     if (!cred) throw new NotFoundException('Credential not found');
     let host: string | null = null;
     let port = 22;
@@ -420,9 +568,9 @@ export class ExecController {
 export class AuditController {
   constructor(@InjectRepository(AuditLog) private repo: Repository<AuditLog>) {}
 
-  @Get() async list(@Query('action') action?: string, @Query('limit') limit = '100', @Query('offset') offset = '0') {
+  @Get() async list(@Org() orgId: string, @Query('action') action?: string, @Query('limit') limit = '100', @Query('offset') offset = '0') {
     const [items, total] = await this.repo.findAndCount({
-      where: action ? { action } : {},
+      where: { organizationId: orgId, ...(action ? { action } : {}) },
       order: { timestamp: 'DESC' },
       take: Math.min(Math.max(parseInt(limit, 10) || 100, 1), 500),
       skip: Math.max(parseInt(offset, 10) || 0, 0),
@@ -439,14 +587,14 @@ export class SearchController {
     @InjectRepository(Vm) private vms: Repository<Vm>,
   ) {}
 
-  @Get() async search(@Query('q') q = '') {
+  @Get() async search(@Org() orgId: string, @Query('q') q = '') {
     q = q.trim();
     if (q.length < 2) return [];
     const like = ILike(`%${escapeLike(q)}%`);
     const [cs, ds, vs] = await Promise.all([
-      this.clients.find({ where: [{ name: like }, { contact: like }], take: 10 }),
-      this.devices.find({ where: [{ name: like }, { host: like }, { os: like }], take: 20 }),
-      this.vms.find({ where: [{ name: like }, { ip: like }, { purpose: like }], relations: { device: true }, take: 20 }),
+      this.clients.find({ where: [{ name: like }, { contact: like }].map((w) => ({ ...w, organizationId: orgId })), take: 10 }),
+      this.devices.find({ where: [{ name: like }, { host: like }, { os: like }].map((w) => ({ ...w, ...devScope(orgId) })), take: 20 }),
+      this.vms.find({ where: [{ name: like }, { ip: like }, { purpose: like }].map((w) => ({ ...w, ...vmScope(orgId) })), relations: { device: true }, take: 20 }),
     ]);
     return [
       ...cs.map((c) => ({ type: 'client', id: c.id, name: c.name, clientId: c.id, detail: c.contact })),

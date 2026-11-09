@@ -3,15 +3,16 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { AuditService } from './audit.service';
 import { JwtAuthGuard, RolesGuard } from './auth';
 import {
   AuditController, AuthController, ClientsController, CredentialsController, DevicesController,
-  ExecController, SearchController, SettingsController, SnippetsController, UsersController, VmsController,
+  ExecController, OrganizationsController, SearchController, SettingsController, SnippetsController,
+  UsersController, VmsController,
 } from './controllers';
 import { CryptoService } from './crypto.service';
-import { ALL_ENTITIES, User } from './entities';
+import { ALL_ENTITIES, AppSetting, AuditLog, Client, Organization, User } from './entities';
 import { SshService } from './ssh.service';
 
 @Module({
@@ -37,7 +38,8 @@ import { SshService } from './ssh.service';
   ],
   controllers: [
     AuthController, UsersController, ClientsController, DevicesController, VmsController,
-    CredentialsController, ExecController, AuditController,     SearchController, SettingsController, SnippetsController,
+    CredentialsController, ExecController, AuditController, SearchController, SettingsController,
+    SnippetsController, OrganizationsController,
   ],
   providers: [
     CryptoService, AuditService, SshService,
@@ -47,15 +49,45 @@ import { SshService } from './ssh.service';
 })
 export class AppModule implements OnModuleInit {
   private readonly logger = new Logger('Seed');
-  constructor(@InjectRepository(User) private users: Repository<User>) {}
+  constructor(
+    @InjectRepository(User) private users: Repository<User>,
+    @InjectRepository(Organization) private orgs: Repository<Organization>,
+    @InjectRepository(Client) private clients: Repository<Client>,
+    @InjectRepository(AuditLog) private audit: Repository<AuditLog>,
+    @InjectRepository(AppSetting) private settings: Repository<AppSetting>,
+  ) {}
 
   async onModuleInit() {
-    if ((await this.users.count()) > 0) return;
+    let org = await this.orgs.findOne({ where: {}, order: { createdAt: 'ASC' } });
+    if (!org) {
+      const name = (await this.settings.findOne({ where: { key: 'companyName' } }))?.value
+        || process.env.DEFAULT_ORG_NAME || 'Telekonet';
+      const logo = (await this.settings.findOne({ where: { key: 'logo' } }))?.value ?? null;
+      org = await this.orgs.save(this.orgs.create({ name, logo }));
+      this.logger.log(`Created default organisation "${name}"`);
+    }
+    await this.clients.update({ organizationId: IsNull() }, { organizationId: org.id });
+    await this.audit.update({ organizationId: IsNull() }, { organizationId: org.id });
+
+    const all = await this.users.find({ relations: { organizations: true }, order: { createdAt: 'ASC' } });
+    for (const u of all) {
+      if (!u.organizations?.length) {
+        u.organizations = [org];
+        await this.users.save(u);
+      }
+    }
+    if (all.length && !all.some((u) => u.isSuperAdmin)) {
+      const first = all.find((u) => u.role === 'admin');
+      if (first) await this.users.update(first.id, { isSuperAdmin: true });
+    }
+    if (all.length > 0) return;
+
     const username = process.env.SEED_ADMIN_USERNAME ?? 'admin';
     const password = process.env.SEED_ADMIN_PASSWORD;
     if (!password) throw new Error('SEED_ADMIN_PASSWORD must be set to create the first admin');
     await this.users.save(this.users.create({
-      username, role: 'admin', passwordHash: await bcrypt.hash(password, 12),
+      username, role: 'admin', isSuperAdmin: true, organizations: [org],
+      passwordHash: await bcrypt.hash(password, 12),
     }));
     this.logger.log(`Seeded admin user "${username}"`);
   }

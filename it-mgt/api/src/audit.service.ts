@@ -15,6 +15,7 @@ export class AuditService {
       this.repo.create({
         userId: ctx.userId,
         username: ctx.username,
+        organizationId: ctx.orgId,
         ip: ctx.ip,
         action,
         entity,

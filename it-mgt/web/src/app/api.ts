@@ -7,7 +7,12 @@ export type Role = 'admin' | 'engineer' | 'viewer';
 export const DEVICE_TYPES = ['server', 'hypervisor', 'switch', 'router', 'firewall', 'other'];
 export const CREDENTIAL_TYPES = ['ssh', 'rdp', 'web', 'snmp', 'database', 'other'];
 
-export interface User { id: string; username: string; role: Role; active: boolean }
+export interface OrgRef { id: string; name: string }
+export interface User {
+  id: string; username: string; role: Role; active: boolean; isSuperAdmin?: boolean;
+  organization?: OrgRef; organizations?: OrgRef[];
+}
+export interface OrgSummary extends OrgRef { clientCount: number; userCount: number }
 export interface Client { id: string; name: string; contact?: string; notes?: string; deviceCount?: number; devices?: Device[] }
 export interface Device {
   id: string; clientId: string; name: string; type: string; host?: string; port?: number; os?: string;
@@ -35,18 +40,26 @@ export class Auth {
   private router = inject(Router);
   readonly user = signal<User | null>(JSON.parse(localStorage.getItem(USER_KEY) ?? 'null'));
   readonly isAdmin = computed(() => this.user()?.role === 'admin');
+  readonly isSuper = computed(() => !!this.user()?.isSuperAdmin);
   readonly canWrite = computed(() => ['admin', 'engineer'].includes(this.user()?.role ?? ''));
 
   get token() { return localStorage.getItem(TOKEN_KEY); }
 
-  login(username: string, password: string) {
-    return this.http.post<{ token: string; user: User }>('/api/auth/login', { username, password }).pipe(
-      tap((r) => {
-        localStorage.setItem(TOKEN_KEY, r.token);
-        localStorage.setItem(USER_KEY, JSON.stringify(r.user));
-        this.user.set(r.user);
-      }),
+  /** Resolves with `organizations` when the user must pick one, otherwise signs in. */
+  login(username: string, password: string, organizationId?: string) {
+    return this.http.post<{ token?: string; user?: User; organizations?: OrgRef[] }>('/api/auth/login', { username, password, ...(organizationId ? { organizationId } : {}) }).pipe(
+      tap((r) => { if (r.token && r.user) this.store(r.token, r.user); }),
     );
+  }
+
+  switchOrg(organizationId: string) {
+    return this.http.post<{ token: string; user: User }>('/api/auth/switch', { organizationId }).pipe(tap((r) => this.store(r.token, r.user)));
+  }
+
+  private store(token: string, user: User) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    this.user.set(user);
   }
 
   logout() {
@@ -150,6 +163,12 @@ export class Api {
   createUser = (u: { username: string; password: string; role: string }) => this.http.post<User>('/api/users', u);
   updateUser = (id: string, u: Partial<User> & { password?: string }) => this.http.put<User>(`/api/users/${id}`, u);
   deleteUser = (id: string) => this.http.delete(`/api/users/${id}`);
+  setUserOrgs = (id: string, organizationIds: string[]) => this.http.put<User>(`/api/users/${id}/organizations`, { organizationIds });
+
+  orgs = () => this.http.get<OrgSummary[]>('/api/organizations');
+  createOrg = (name: string) => this.http.post<OrgRef>('/api/organizations', { name });
+  renameOrg = (id: string, name: string) => this.http.put<OrgRef>(`/api/organizations/${id}`, { name });
+  deleteOrg = (id: string) => this.http.delete(`/api/organizations/${id}`);
 }
 
 /** Copy only the allowed fields; empty strings become null so fields can be cleared. */

@@ -6,18 +6,21 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Role, User } from './entities';
+import { Organization, Role, User } from './entities';
 
-export interface AuthUser { id: string; username: string; role: Role }
-export interface ReqCtx { userId: string | null; username: string | null; ip: string | null }
+export interface AuthUser { id: string; username: string; role: Role; isSuperAdmin: boolean; orgId: string }
+export interface ReqCtx { userId: string | null; username: string | null; ip: string | null; orgId: string | null }
 
 export const Roles = (...roles: Role[]) => SetMetadata('roles', roles);
 export const Public = () => SetMetadata('public', true);
 
 export const Ctx = createParamDecorator((_: unknown, ec: ExecutionContext): ReqCtx => {
   const req = ec.switchToHttp().getRequest();
-  return { userId: req.user?.id ?? null, username: req.user?.username ?? null, ip: req.ip ?? null };
+  return { userId: req.user?.id ?? null, username: req.user?.username ?? null, ip: req.ip ?? null, orgId: req.user?.orgId ?? null };
 });
+
+/** The organisation the caller is signed in to; every query must be scoped to it. */
+export const Org = createParamDecorator((_: unknown, ec: ExecutionContext): string => ec.switchToHttp().getRequest().user.orgId);
 
 export const CurrentUser = createParamDecorator(
   (_: unknown, ec: ExecutionContext): AuthUser => ec.switchToHttp().getRequest().user,
@@ -29,6 +32,7 @@ export class JwtAuthGuard implements CanActivate {
     private reflector: Reflector,
     private jwt: JwtService,
     @InjectRepository(User) private users: Repository<User>,
+    @InjectRepository(Organization) private orgs: Repository<Organization>,
   ) {}
 
   async canActivate(ec: ExecutionContext): Promise<boolean> {
@@ -37,16 +41,21 @@ export class JwtAuthGuard implements CanActivate {
     const header: string = req.headers['authorization'] ?? '';
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) throw new UnauthorizedException();
-    let payload: { sub: string };
+    let payload: { sub: string; org?: string };
     try {
       payload = await this.jwt.verifyAsync(token);
     } catch {
       throw new UnauthorizedException();
     }
-    // Reload so role changes / deactivation take effect immediately.
-    const user = await this.users.findOne({ where: { id: payload.sub } });
+    if (!payload.org) throw new UnauthorizedException();
+    // Reload so role/membership changes and deactivation take effect immediately.
+    const user = await this.users.findOne({ where: { id: payload.sub }, relations: { organizations: true } });
     if (!user || !user.active) throw new UnauthorizedException();
-    req.user = { id: user.id, username: user.username, role: user.role } as AuthUser;
+    const allowed = user.isSuperAdmin
+      ? await this.orgs.exist({ where: { id: payload.org } })
+      : user.organizations.some((o) => o.id === payload.org);
+    if (!allowed) throw new UnauthorizedException();
+    req.user = { id: user.id, username: user.username, role: user.role, isSuperAdmin: user.isSuperAdmin, orgId: payload.org } as AuthUser;
     return true;
   }
 }

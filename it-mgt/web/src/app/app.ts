@@ -21,6 +21,7 @@ import { Api, Auth, BrandingService, SearchHit, Theme } from './api';
           <a routerLink="/audit" routerLinkActive="active">Audit log</a>
           <a routerLink="/users" routerLinkActive="active">Users</a>
         }
+        @if (auth.isSuper()) { <a routerLink="/organizations" routerLinkActive="active">Organisations</a> }
         <span class="spacer"></span>
         <a routerLink="/settings" routerLinkActive="active">⚙ Settings</a>
       </nav>
@@ -40,8 +41,13 @@ import { Api, Auth, BrandingService, SearchHit, Theme } from './api';
             }
           </div>
           <div class="usermenu" tabindex="0">
-            <span class="whoami">{{ u.username }} ({{ u.role }}) ▾</span>
-            <div class="usermenu-pop"><button type="button" (click)="auth.logout()">Logout</button></div>
+            <span class="whoami">{{ u.username }} ({{ u.role }}) · {{ u.organization?.name }} ▾</span>
+            <div class="usermenu-pop">
+              @for (o of otherOrgs(); track o.id) {
+                <button type="button" (click)="switchOrg(o.id)">Switch to {{ o.name }}</button>
+              }
+              <button type="button" (click)="auth.logout()">Logout</button>
+            </div>
           </div>
         </header>
         <main><router-outlet /></main>
@@ -71,6 +77,13 @@ export class App {
   }
 
   onQuery(v: string) { this.q = v; this.query$.next(v); }
+  otherOrgs() {
+    const u = this.auth.user();
+    return (u?.organizations ?? []).filter((o) => o.id !== u?.organization?.id);
+  }
+  switchOrg(id: string) {
+    this.auth.switchOrg(id).subscribe(() => { location.assign('/'); });
+  }
   toggleSearch() { this.searchOpen() ? this.closeSearch() : this.searchOpen.set(true); }
   closeSearch() { this.searchOpen.set(false); this.hits.set([]); this.q = ''; this.query$.next(''); }
   go(h: SearchHit) {

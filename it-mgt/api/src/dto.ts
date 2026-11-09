@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import {
-  IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min,
+  ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min,
   MinLength,
 } from 'class-validator';
 import { CREDENTIAL_TYPES, DEVICE_TYPES, ROLES } from './entities';
@@ -8,6 +8,19 @@ import { CREDENTIAL_TYPES, DEVICE_TYPES, ROLES } from './entities';
 export class LoginDto {
   @IsString() username: string;
   @IsString() password: string;
+  @IsOptional() @IsUUID() organizationId?: string;
+}
+export class SwitchOrgDto {
+  @IsUUID() organizationId: string;
+}
+export class CreateOrgDto {
+  @IsString() @Length(1, 100) name: string;
+}
+export class UpdateOrgDto {
+  @IsOptional() @IsString() @Length(1, 100) name?: string;
+}
+export class SetUserOrgsDto {
+  @IsArray() @ArrayMinSize(1) @IsUUID(undefined, { each: true }) organizationIds: string[];
 }
 
 export class CreateUserDto {

@@ -1,11 +1,19 @@
 import {
-  Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn,
+  Column, CreateDateColumn, Entity, Index, JoinColumn, JoinTable, ManyToMany, ManyToOne, OneToMany, PrimaryColumn, PrimaryGeneratedColumn, UpdateDateColumn,
 } from 'typeorm';
 
 export type Role = 'admin' | 'engineer' | 'viewer';
 export const ROLES: Role[] = ['admin', 'engineer', 'viewer'];
 export const DEVICE_TYPES = ['server', 'hypervisor', 'switch', 'router', 'firewall', 'other'] as const;
 export const CREDENTIAL_TYPES = ['ssh', 'rdp', 'web', 'snmp', 'database', 'other'] as const;
+
+@Entity('organizations')
+export class Organization {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column({ unique: true }) name: string;
+  @Column({ type: 'text', nullable: true }) logo: string | null;
+  @CreateDateColumn() createdAt: Date;
+}
 
 @Entity('users')
 export class User {
@@ -14,6 +22,10 @@ export class User {
   @Column() passwordHash: string;
   @Column({ type: 'varchar', default: 'viewer' }) role: Role;
   @Column({ default: true }) active: boolean;
+  /** Super admins manage organisations and may enter any of them. */
+  @Column({ default: false }) isSuperAdmin: boolean;
+  @ManyToMany(() => Organization)
+  @JoinTable({ name: 'user_organizations' }) organizations: Organization[];
   @CreateDateColumn() createdAt: Date;
 }
 
@@ -26,6 +38,9 @@ export class AppSetting {
 @Entity('clients')
 export class Client {
   @PrimaryGeneratedColumn('uuid') id: string;
+  @Index() @Column({ type: 'uuid', nullable: true }) organizationId: string | null;
+  @ManyToOne(() => Organization, { onDelete: 'RESTRICT', nullable: true })
+  @JoinColumn({ name: 'organizationId' }) organization: Organization;
   @Column() name: string;
   @Column({ type: 'varchar', nullable: true }) contact: string | null;
   @Column({ type: 'text', nullable: true }) notes: string | null;
@@ -95,6 +110,7 @@ export class Credential {
 @Entity('audit_logs')
 export class AuditLog {
   @PrimaryGeneratedColumn('uuid') id: string;
+  @Index() @Column({ type: 'uuid', nullable: true }) organizationId: string | null;
   @Column({ type: 'uuid', nullable: true }) userId: string | null;
   @Column({ type: 'varchar', nullable: true }) username: string | null;
   @Column() action: string;
@@ -120,4 +136,4 @@ export class ConfigSnippet {
   @UpdateDateColumn() updatedAt: Date;
 }
 
-export const ALL_ENTITIES = [User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet];
+export const ALL_ENTITIES = [Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet];
