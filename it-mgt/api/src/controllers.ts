@@ -495,7 +495,17 @@ export class ClientsController {
     const rows = await this.repo.createQueryBuilder('c')
       .where('c.organizationId = :orgId', { orgId })
       .loadRelationCountAndMap('c.deviceCount', 'c.devices').orderBy('c.name').getMany();
-    return rows;
+    const vmCounts = rows.length
+      ? await this.devices.createQueryBuilder('d')
+        .select('d.clientId', 'clientId')
+        .addSelect('COUNT(vm.id)', 'vmCount')
+        .innerJoin('d.vms', 'vm')
+        .where('d.clientId IN (:...clientIds)', { clientIds: rows.map((client) => client.id) })
+        .groupBy('d.clientId')
+        .getRawMany<{ clientId: string; vmCount: string }>()
+      : [];
+    const vmCountByClient = new Map(vmCounts.map(({ clientId, vmCount }) => [clientId, Number(vmCount)]));
+    return rows.map((client) => ({ ...client, vmCount: vmCountByClient.get(client.id) ?? 0 }));
   }
 
   @Get(':id') async one(@Param('id', uuid()) id: string, @Org() orgId: string) {
