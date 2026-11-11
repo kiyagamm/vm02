@@ -28,7 +28,7 @@ const MAX_LOGO_BYTES = 500 * 1024;
       <label>New password (leave empty to keep) <input name="np" type="password" [(ngModel)]="profile.newPassword" minlength="8" autocomplete="new-password" /></label>
       <label>Current password (required to save) <input name="cp" type="password" [(ngModel)]="profile.currentPassword" required autocomplete="current-password" /></label>
       <div><button>Save profile</button></div>
-      <p class="muted">Role: {{ auth.user()?.role }}. Admins can edit other users under Users.</p>
+      <p class="muted">Role: {{ auth.user()?.role }}</p>
     </form>
 
     @if (auth.isAdmin()) {
