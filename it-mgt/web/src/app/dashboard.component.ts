@@ -25,7 +25,10 @@ import { Api, Auth, Client, errMsg } from './api';
           <h2><a [routerLink]="['/clients', c.id]">{{ c.name }}</a></h2>
           <p class="muted">{{ c.contact }}</p>
           <p>{{ c.deviceCount ?? 0 }} devices</p>
-          <p>{{ c.vmCount ?? 0 }} VMs</p>
+          @for (item of c.deviceTypeCounts ?? []; track item.type) {
+            @if (item.count > 0) { <p>{{ item.count }} {{ deviceTypeLabel(item.type, item.count) }}</p> }
+          }
+          @if (c.vmCount) { <p>{{ c.vmCount }} VMs</p> }
           <p class="muted">{{ c.notes }}</p>
           @if (auth.canWrite()) { <button class="sm" (click)="form.set({ ...c })">Edit</button> }
           @if (auth.isAdmin()) { <button class="sm danger" (click)="remove(c)">Delete</button> }
@@ -42,6 +45,11 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit() { this.load(); }
   load() { this.api.clients().subscribe({ next: (c) => this.clients.set(c), error: (e) => this.error.set(errMsg(e)) }); }
+  deviceTypeLabel(type: string, count: number) {
+    if (type === 'other') return count === 1 ? 'other device' : 'other devices';
+    if (count === 1) return type;
+    return type === 'switch' ? 'switches' : `${type}s`;
+  }
 
   save() {
     this.api.saveClient(this.form()!).subscribe({

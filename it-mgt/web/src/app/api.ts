@@ -17,7 +17,7 @@ export interface PlatformOverview { organizations: number; users: number; client
 export interface SignupReq { id: string; username: string; type: 'new-org' | 'join'; organizationName: string; createdAt: string }
 export interface OrgSummary extends OrgRef { slug: string | null; clientCount: number; userCount: number; deviceCount: number; maxUsers: number; maxDevices: number }
 export interface OrgPublic extends OrgRef { slug: string; logo: string | null }
-export interface Client { id: string; name: string; contact?: string; notes?: string; deviceCount?: number; vmCount?: number; devices?: Device[] }
+export interface Client { id: string; name: string; contact?: string; notes?: string; deviceCount?: number; vmCount?: number; deviceTypeCounts?: { type: string; count: number }[]; devices?: Device[] }
 export interface Device {
   id: string; clientId: string; name: string; type: string; host?: string; port?: number; os?: string;
   platform?: string; brand?: string; model?: string; location?: string; deploymentDate?: string | null; notes?: string; metadata: Record<string, unknown>; vms?: Vm[];

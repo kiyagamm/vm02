@@ -495,17 +495,34 @@ export class ClientsController {
     const rows = await this.repo.createQueryBuilder('c')
       .where('c.organizationId = :orgId', { orgId })
       .loadRelationCountAndMap('c.deviceCount', 'c.devices').orderBy('c.name').getMany();
-    const vmCounts = rows.length
+    const counts = rows.length
       ? await this.devices.createQueryBuilder('d')
         .select('d.clientId', 'clientId')
+        .addSelect('d.type', 'type')
+        .addSelect('COUNT(DISTINCT d.id)', 'deviceCount')
         .addSelect('COUNT(vm.id)', 'vmCount')
-        .innerJoin('d.vms', 'vm')
+        .leftJoin('d.vms', 'vm')
         .where('d.clientId IN (:...clientIds)', { clientIds: rows.map((client) => client.id) })
         .groupBy('d.clientId')
-        .getRawMany<{ clientId: string; vmCount: string }>()
+        .addGroupBy('d.type')
+        .orderBy('d.type')
+        .getRawMany<{ clientId: string; type: string; deviceCount: string; vmCount: string }>()
       : [];
-    const vmCountByClient = new Map(vmCounts.map(({ clientId, vmCount }) => [clientId, Number(vmCount)]));
-    return rows.map((client) => ({ ...client, vmCount: vmCountByClient.get(client.id) ?? 0 }));
+    const countsByClient = new Map<string, { vmCount: number; deviceTypeCounts: { type: string; count: number }[] }>();
+    for (const { clientId, type, deviceCount, vmCount } of counts) {
+      let summary = countsByClient.get(clientId);
+      if (!summary) {
+        summary = { vmCount: 0, deviceTypeCounts: [] };
+        countsByClient.set(clientId, summary);
+      }
+      summary.vmCount += Number(vmCount);
+      summary.deviceTypeCounts.push({ type, count: Number(deviceCount) });
+    }
+    return rows.map((client) => ({
+      ...client,
+      vmCount: countsByClient.get(client.id)?.vmCount ?? 0,
+      deviceTypeCounts: countsByClient.get(client.id)?.deviceTypeCounts ?? [],
+    }));
   }
 
   @Get(':id') async one(@Param('id', uuid()) id: string, @Org() orgId: string) {
