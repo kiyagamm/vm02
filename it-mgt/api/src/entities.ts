@@ -156,6 +156,18 @@ export class ConfigSnippet {
   @UpdateDateColumn() updatedAt: Date;
 }
 
+@Entity('device_config_files')
+export class DeviceConfigFile {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Index() @Column() deviceId: string;
+  @ManyToOne(() => Device, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'deviceId' }) device: Device;
+  @Column({ length: 255 }) name: string;
+  @Column({ type: 'int' }) size: number;
+  @Column({ type: 'bytea', select: false }) content: Buffer;
+  @CreateDateColumn() createdAt: Date;
+}
+
 @Entity('signup_requests')
 export class SignupRequest {
   @PrimaryGeneratedColumn('uuid') id: string;
@@ -166,4 +178,4 @@ export class SignupRequest {
   @CreateDateColumn() createdAt: Date;
 }
 
-export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet];
+export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet, DeviceConfigFile];

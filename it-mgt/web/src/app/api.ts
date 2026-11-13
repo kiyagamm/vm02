@@ -28,6 +28,7 @@ export interface Vm {
   id: string; deviceId: string; name: string; ip?: string; os?: string; cpu?: number; ramMb?: number;
   diskGb?: number; status: string; purpose?: string; metadata: Record<string, unknown>;
 }
+export interface DeviceConfigFile { id: string; deviceId: string; name: string; size: number; createdAt: string }
 export interface Credential { id: string; deviceId?: string; vmId?: string; username: string; password: string; type: string; notes?: string }
 export interface AuditEntry { id: string; username: string; action: string; entity: string; entityId?: string; details?: string; ip?: string; timestamp: string }
 export interface SearchHit { type: string; id: string; name: string; clientId: string; detail?: string }
@@ -161,6 +162,14 @@ export class Api {
     : this.http.post<Device>('/api/devices', pick(d, Object.keys(d)));
   deleteDevice = (id: string) => this.http.delete(`/api/devices/${id}`);
   devices = (clientId: string) => this.http.get<Device[]>('/api/devices', { params: { clientId } });
+  deviceConfigFiles = (deviceId: string) => this.http.get<DeviceConfigFile[]>(`/api/devices/${deviceId}/config-files`);
+  uploadDeviceConfigFile = (deviceId: string, file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return this.http.post<DeviceConfigFile>(`/api/devices/${deviceId}/config-files`, body);
+  };
+  downloadDeviceConfigFile = (deviceId: string, fileId: string) =>
+    this.http.get(`/api/devices/${deviceId}/config-files/${fileId}`, { responseType: 'blob' });
 
   snippets = () => this.http.get<Snippet[]>('/api/snippets');
   saveSnippet = (s: Partial<Snippet>) => s.id

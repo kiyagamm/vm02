@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { AuditLog } from './entities';
 import { ReqCtx } from './auth';
 
-export type AuditAction = 'create' | 'update' | 'delete' | 'reveal-password' | 'command-run' | 'login' | 'login-failed';
+export type AuditAction = 'create' | 'update' | 'delete' | 'download' | 'reveal-password' | 'command-run' | 'login' | 'login-failed';
 
 @Injectable()
 export class AuditService {

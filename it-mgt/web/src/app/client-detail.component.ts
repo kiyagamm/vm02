@@ -3,7 +3,7 @@ import { DatePipe, JsonPipe, NgTemplateOutlet, UpperCasePipe } from '@angular/co
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { forkJoin, map, of, switchMap } from 'rxjs';
-import { Api, Auth, Client, Credential, DEVICE_TYPES, Device, Vm, errMsg } from './api';
+import { Api, Auth, Client, Credential, DEVICE_TYPES, Device, DeviceConfigFile, Vm, errMsg } from './api';
 import { CredentialsComponent } from './credentials.component';
 
 @Component({
@@ -18,7 +18,7 @@ import { CredentialsComponent } from './credentials.component';
       @if (error()) { <div class="error">{{ error() }}</div> }
 
       <div class="row"><h2>Devices</h2>
-        @if (auth.canWrite()) { <button (click)="newDevice()">+ Add device</button> }
+        @if (auth.canWrite()) { <button [disabled]="savingDevice()" (click)="newDevice()">+ Add device</button> }
         @if (auth.canWrite()) { <button type="button" (click)="openReport(c)">Print report</button> }
       </div>
 
@@ -54,13 +54,16 @@ import { CredentialsComponent } from './credentials.component';
             <label>Platform <input name="platform" [(ngModel)]="f.platform" placeholder="Proxmox, VMware, Hyper-V" /></label>
           }
           <label>Notes <input name="notes" [(ngModel)]="f.notes" /></label>
+          <label>Configuration file (optional, max 25 MB)
+            <input type="file" (change)="selectConfigFile($event)" />
+          </label>
           <label class="check"><input type="checkbox" name="snmpOn" [(ngModel)]="f.snmpEnabled" /> Monitor status with SNMP (needs the IP / host above)</label>
           @if (f.snmpEnabled) {
             <label>SNMP version <select name="snmpV" [(ngModel)]="f.snmpVersion"><option value="2c">v2c</option><option value="1">v1</option></select></label>
             <label>SNMP port <input name="snmpP" type="number" [(ngModel)]="f.snmpPort" placeholder="161" /></label>
             <label>Community string <input name="snmpC" type="password" autocomplete="new-password" [(ngModel)]="f.snmpCommunity" [placeholder]="f.id ? 'Leave blank to keep current' : 'public'" /></label>
           }
-          <div><button>Save</button> <button type="button" (click)="deviceForm.set(null)">Cancel</button></div>
+          <div><button [disabled]="savingDevice()">{{ savingDevice() ? 'Saving…' : 'Save' }}</button> <button type="button" [disabled]="savingDevice()" (click)="cancelDevice()">Cancel</button></div>
         </form>
       }
 
@@ -75,7 +78,7 @@ import { CredentialsComponent } from './credentials.component';
             @if (d.deploymentDate) { <span class="muted">· deployed {{ d.deploymentDate }}</span> }
             <span class="spacer"></span>
             @if (d.type === 'hypervisor') { <span class="muted">{{ d.vms?.length ?? 0 }} VMs</span> }
-            @if (auth.canWrite()) { <button class="sm" (click)="editDevice(d); $event.stopPropagation()">Edit</button> }
+            @if (auth.canWrite()) { <button class="sm" [disabled]="savingDevice()" (click)="editDevice(d); $event.stopPropagation()">Edit</button> }
             @if (auth.isAdmin()) { <button class="sm danger" (click)="deleteDevice(d); $event.stopPropagation()">Delete</button> }
           </div>
           @if (open().has('d' + d.id)) {
@@ -95,6 +98,18 @@ import { CredentialsComponent } from './credentials.component';
                 @if (d.statusInfo?.sysDescr) { <p class="muted">{{ d.statusInfo?.sysDescr }}</p> }
               }
               @if (hasMeta(d.metadata)) { <pre>{{ d.metadata | json }}</pre> }
+              @if (auth.canWrite()) {
+                <h3>Configuration files</h3>
+                @if (configFiles()[d.id]; as files) {
+                  @for (file of files; track file.id) {
+                    <div class="row"><span>{{ file.name }} ({{ file.size }} bytes)</span>
+                      <button type="button" class="sm" (click)="downloadConfigFile(d.id, file)">Download</button>
+                    </div>
+                  } @empty { <small class="muted">No configuration files.</small> }
+                } @else if (configFileErrors()[d.id]) {
+                  <small class="error">Unable to load configuration files. Close and reopen the device to retry.</small>
+                } @else { <small class="muted">Loading configuration files…</small> }
+              }
               <app-credentials [deviceId]="d.id" />
 
               @if (d.type === 'hypervisor') {
@@ -195,6 +210,11 @@ export class ClientDetailComponent implements OnInit {
   open = signal(new Set<string>());
   error = signal('');
   deviceForm = signal<Partial<Device> | null>(null);
+  configFiles = signal<Record<string, DeviceConfigFile[]>>({});
+  configFileErrors = signal<Record<string, boolean>>({});
+  configFile: File | null = null;
+  configFileInvalid = false;
+  savingDevice = signal(false);
   vmForm = signal<Partial<Vm> | null>(null);
   vmMeta = '{}';
 
@@ -246,7 +266,9 @@ export class ClientDetailComponent implements OnInit {
   load() { this.api.client(this.id()).subscribe({ next: (c) => this.client.set(c), error: (e) => this.error.set(errMsg(e)) }); }
 
   toggle(k: string) {
+    const opening = !this.open().has(k);
     this.open.update((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
+    if (opening && k.startsWith('d') && this.auth.canWrite()) this.loadConfigFiles(k.slice(1));
   }
   hasMeta(m?: Record<string, unknown>) { return !!m && Object.keys(m).length > 0; }
 
@@ -264,11 +286,59 @@ export class ClientDetailComponent implements OnInit {
     error: (e: unknown) => this.error.set(errMsg(e)),
   };
 
-  newDevice() { this.deviceForm.set({ clientId: this.id(), type: 'server' }); }
-  editDevice(d: Device) { this.deviceForm.set({ ...d }); }
+  newDevice() { this.configFile = null; this.configFileInvalid = false; this.deviceForm.set({ clientId: this.id(), type: 'server' }); }
+  editDevice(d: Device) { this.configFile = null; this.configFileInvalid = false; this.deviceForm.set({ ...d }); }
+  cancelDevice() { this.configFile = null; this.configFileInvalid = false; this.deviceForm.set(null); }
+  selectConfigFile(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    this.configFile = null;
+    this.configFileInvalid = !!file && (file.size === 0 || file.size > 25 * 1024 * 1024);
+    if (this.configFileInvalid) {
+      this.error.set('Select a non-empty configuration file up to 25 MB');
+      return;
+    }
+    this.error.set('');
+    this.configFile = file;
+  }
   saveDevice() {
     const f = this.deviceForm()!;
-    this.api.saveDevice({ ...f, port: f.port ? Number(f.port) : undefined, snmpPort: f.snmpPort ? Number(f.snmpPort) : null, snmpCommunity: f.snmpCommunity || undefined, deploymentDate: f.deploymentDate || null }).subscribe(this.done);
+    if (this.savingDevice() || this.configFileInvalid) return;
+    const file = this.configFile;
+    this.savingDevice.set(true);
+    this.error.set('');
+    this.api.saveDevice({ ...f, port: f.port ? Number(f.port) : undefined, snmpPort: f.snmpPort ? Number(f.snmpPort) : null, snmpCommunity: f.snmpCommunity || undefined, deploymentDate: f.deploymentDate || null }).subscribe({
+      next: (device) => {
+        if (!file) { this.savingDevice.set(false); this.cancelDevice(); this.load(); return; }
+        this.deviceForm.set({ ...f, id: device.id });
+        this.api.uploadDeviceConfigFile(device.id, file).subscribe({
+          next: () => { this.savingDevice.set(false); this.cancelDevice(); this.load(); if (this.open().has('d' + device.id)) this.loadConfigFiles(device.id); },
+          error: (e) => { this.savingDevice.set(false); this.error.set(`Device saved, but configuration upload failed: ${errMsg(e)}. Retry saving to upload the file.`); this.load(); },
+        });
+      },
+      error: (e) => { this.savingDevice.set(false); this.error.set(errMsg(e)); },
+    });
+  }
+  private loadConfigFiles(deviceId: string) {
+    this.configFileErrors.update((all) => ({ ...all, [deviceId]: false }));
+    this.api.deviceConfigFiles(deviceId).subscribe({
+      next: (files) => this.configFiles.update((all) => ({ ...all, [deviceId]: files })),
+      error: (e) => {
+        this.configFiles.update((all) => { const updated = { ...all }; delete updated[deviceId]; return updated; });
+        this.configFileErrors.update((all) => ({ ...all, [deviceId]: true }));
+        this.error.set(errMsg(e));
+      },
+    });
+  }
+  downloadConfigFile(deviceId: string, file: DeviceConfigFile) {
+    this.api.downloadDeviceConfigFile(deviceId, file.id).subscribe({
+      next: (content) => {
+        const url = URL.createObjectURL(content);
+        const link = document.createElement('a');
+        link.href = url; link.download = file.name; link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      },
+      error: (e) => this.error.set(errMsg(e)),
+    });
   }
   checkNow(d: Device) {
     this.api.checkDevice(d.id).subscribe({ next: () => this.load(), error: (e) => { this.error.set(errMsg(e)); this.load(); } });
