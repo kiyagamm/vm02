@@ -168,6 +168,24 @@ export class DeviceConfigFile {
   @CreateDateColumn() createdAt: Date;
 }
 
+@Entity('asset_movements')
+export class AssetMovement {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Index() @Column({ type: 'uuid' }) organizationId: string;
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organizationId' }) organization: Organization;
+  @Column({ length: 200 }) assetName: string;
+  @Column({ length: 200, default: '' }) assetTag: string;
+  @Column({ length: 200, default: '' }) serialNumber: string;
+  @Column({ length: 200 }) moverName: string;
+  @Column({ length: 200, default: '' }) moverContact: string;
+  @Column({ length: 200 }) origin: string;
+  @Column({ length: 200 }) destination: string;
+  @Column({ type: 'date' }) movementDate: string;
+  @Column({ type: 'text', default: '' }) notes: string;
+  @CreateDateColumn() createdAt: Date;
+}
+
 @Entity('signup_requests')
 export class SignupRequest {
   @PrimaryGeneratedColumn('uuid') id: string;
@@ -178,4 +196,4 @@ export class SignupRequest {
   @CreateDateColumn() createdAt: Date;
 }
 
-export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet, DeviceConfigFile];
+export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet, DeviceConfigFile, AssetMovement];

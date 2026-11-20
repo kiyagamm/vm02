@@ -33,6 +33,7 @@ Open http://localhost:8080 and sign in with `SEED_ADMIN_USERNAME` / `SEED_ADMIN_
 - Audit log records user, action, entity, details, IP and timestamp (create, update, delete, reveal-password, command-run, plus login/login-failed).
 - Metadata JSON columns on devices and VMs allow adding fields without migrations.
 - Device configuration files can be uploaded when creating or editing a device. Files up to 25 MiB are stored in PostgreSQL, available to admins and engineers from the device, and included in database backups.
+- Organisation users can view saved asset movement forms under **Forms**; admins and engineers can create them. Forms can be printed or saved as PDF and use the current organisation logo from Settings. They record movements but do not update inventory, and are deleted if the organisation is deleted.
 - Reverse proxies must allow multipart requests of at least 26 MiB for `/api/devices/<id>/config-files`; the bundled nginx configuration sets this limit for that endpoint.
 - The schema is created with TypeORM `synchronize` for simplicity; switch to migrations before production changes.
 - Back up the `dbdata` volume **and** the `ENCRYPTION_KEY`.

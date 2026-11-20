@@ -29,6 +29,11 @@ export interface Vm {
   diskGb?: number; status: string; purpose?: string; metadata: Record<string, unknown>;
 }
 export interface DeviceConfigFile { id: string; deviceId: string; name: string; size: number; createdAt: string }
+export interface AssetMovementDetails {
+  assetName: string; assetTag: string; serialNumber: string; moverName: string; moverContact: string;
+  origin: string; destination: string; movementDate: string; notes: string;
+}
+export interface AssetMovement extends AssetMovementDetails { id: string; createdAt: string }
 export interface Credential { id: string; deviceId?: string; vmId?: string; username: string; password: string; type: string; notes?: string }
 export interface AuditEntry { id: string; username: string; action: string; entity: string; entityId?: string; details?: string; ip?: string; timestamp: string }
 export interface SearchHit { type: string; id: string; name: string; clientId: string; detail?: string }
@@ -152,6 +157,8 @@ export function errMsg(e: any): string {
 @Injectable({ providedIn: 'root' })
 export class Api {
   private http = inject(HttpClient);
+  assetMovements = () => this.http.get<AssetMovement[]>('/api/asset-movements');
+  createAssetMovement = (movement: AssetMovementDetails) => this.http.post<AssetMovement>('/api/asset-movements', movement);
   clients = () => this.http.get<Client[]>('/api/clients');
   client = (id: string) => this.http.get<Client>(`/api/clients/${id}`);
   saveClient = (c: Partial<Client>) => c.id ? this.http.put<Client>(`/api/clients/${c.id}`, pick(c, ['name', 'contact', 'notes'])) : this.http.post<Client>('/api/clients', pick(c, Object.keys(c)));

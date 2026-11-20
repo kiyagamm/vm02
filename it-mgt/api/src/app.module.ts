@@ -5,6 +5,7 @@ import { InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
 import * as bcrypt from 'bcryptjs';
 import { IsNull, Repository } from 'typeorm';
 import { AuditService } from './audit.service';
+import { AssetMovementsController } from './asset-movements.controller';
 import { JwtAuthGuard, RolesGuard } from './auth';
 import {
   AuditController, AuthController, ClientsController, CredentialsController, DevicesController,
@@ -41,7 +42,7 @@ import { SnmpService } from './snmp.service';
   controllers: [
     AuthController, UsersController, ClientsController, DevicesController, DeviceConfigFilesController, VmsController,
     CredentialsController, ExecController, AuditController, SearchController, SettingsController,
-    SnippetsController, OrganizationsController, PlatformController, SignupsController,
+    SnippetsController, OrganizationsController, PlatformController, SignupsController, AssetMovementsController,
   ],
   providers: [
     CryptoService, AuditService, SshService, SnmpService,

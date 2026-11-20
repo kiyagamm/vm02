@@ -64,6 +64,18 @@ export class UpdateBrandingDto {
   logo?: string | null;
 }
 
+export class CreateAssetMovementDto {
+  @IsString() @Length(1, 200) @Matches(/\S/) assetName: string;
+  @IsString() @MaxLength(200) assetTag: string;
+  @IsString() @MaxLength(200) serialNumber: string;
+  @IsString() @Length(1, 200) @Matches(/\S/) moverName: string;
+  @IsString() @MaxLength(200) moverContact: string;
+  @IsString() @Length(1, 200) @Matches(/\S/) origin: string;
+  @IsString() @Length(1, 200) @Matches(/\S/) destination: string;
+  @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) movementDate: string;
+  @IsString() @MaxLength(2000) notes: string;
+}
+
 export class CreateClientDto {
   @IsString() @Length(1, 200) name: string;
   @IsOptional() @IsString() contact?: string;

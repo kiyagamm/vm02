@@ -43,6 +43,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
           {{ brand.branding().companyName || 'IT Management' }}
         </a>
         <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Clients</a>
+        <a routerLink="/forms" routerLinkActive="active">Forms</a>
         @if (auth.canWrite()) { <a routerLink="/snippets" routerLinkActive="active">Config snippets</a> }
         @if (u.role === 'admin') {
           <a routerLink="/audit" routerLinkActive="active">Audit log</a>

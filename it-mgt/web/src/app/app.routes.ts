@@ -11,6 +11,7 @@ import { SettingsComponent } from './settings.component';
 import { SignupComponent } from './signup.component';
 import { SnippetsComponent } from './snippets.component';
 import { UsersComponent } from './users.component';
+import { AssetMovementComponent, FormsPageComponent } from './forms.component';
 
 const loggedIn: CanActivateFn = () => {
   const a = inject(Auth);
@@ -29,6 +30,8 @@ export const routes: Routes = [
   { path: 'audit', component: AuditComponent, canActivate: [loggedIn, adminOnly] },
   { path: 'users', component: UsersComponent, canActivate: [loggedIn, adminOnly] },
   { path: 'settings', component: SettingsComponent, canActivate: [loggedIn] },
+  { path: 'forms', component: FormsPageComponent, canActivate: [loggedIn] },
+  { path: 'forms/asset-movement', component: AssetMovementComponent, canActivate: [loggedIn] },
   { path: 'snippets', component: SnippetsComponent, canActivate: [loggedIn, writerOnly] },
   { path: 'platform', component: PlatformOverviewComponent, canActivate: [platformOnly] },
   { path: 'platform/organizations', component: OrganizationsComponent, canActivate: [platformOnly] },
