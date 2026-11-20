@@ -12,6 +12,7 @@ import { SignupComponent } from './signup.component';
 import { SnippetsComponent } from './snippets.component';
 import { UsersComponent } from './users.component';
 import { AssetMovementComponent, FormsPageComponent } from './forms.component';
+import { EquipmentEntryComponent } from './equipment-entry.component';
 
 const loggedIn: CanActivateFn = () => {
   const a = inject(Auth);
@@ -20,6 +21,7 @@ const loggedIn: CanActivateFn = () => {
 const platformOnly: CanActivateFn = () => inject(Auth).isPlatform() ? true : inject(Router).parseUrl(inject(Auth).user() ? '/' : '/login');
 const adminOnly: CanActivateFn = () => inject(Auth).isAdmin() ? true : inject(Router).parseUrl('/');
 const writerOnly: CanActivateFn = () => inject(Auth).canWrite() ? true : inject(Router).parseUrl('/');
+const formsOnly: CanActivateFn = () => inject(Auth).canAccessForms() ? true : inject(Router).parseUrl('/');
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -30,8 +32,9 @@ export const routes: Routes = [
   { path: 'audit', component: AuditComponent, canActivate: [loggedIn, adminOnly] },
   { path: 'users', component: UsersComponent, canActivate: [loggedIn, adminOnly] },
   { path: 'settings', component: SettingsComponent, canActivate: [loggedIn] },
-  { path: 'forms', component: FormsPageComponent, canActivate: [loggedIn] },
-  { path: 'forms/asset-movement', component: AssetMovementComponent, canActivate: [loggedIn] },
+  { path: 'forms', component: FormsPageComponent, canActivate: [loggedIn, formsOnly] },
+  { path: 'forms/asset-movement', component: AssetMovementComponent, canActivate: [loggedIn, formsOnly] },
+  { path: 'forms/equipment-entry', component: EquipmentEntryComponent, canActivate: [loggedIn, formsOnly] },
   { path: 'snippets', component: SnippetsComponent, canActivate: [loggedIn, writerOnly] },
   { path: 'platform', component: PlatformOverviewComponent, canActivate: [platformOnly] },
   { path: 'platform/organizations', component: OrganizationsComponent, canActivate: [platformOnly] },

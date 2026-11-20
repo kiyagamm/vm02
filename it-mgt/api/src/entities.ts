@@ -184,11 +184,29 @@ export class AssetMovement {
   @Column({ length: 200, default: '' }) assetTag: string;
   @Column({ length: 200, default: '' }) serialNumber: string;
   @Column({ type: 'jsonb', nullable: true }) additionalAssets: MovementAsset[] | null;
+  @Column({ type: 'varchar', default: 'outbound' }) direction: 'inbound' | 'outbound';
   @Column({ length: 200 }) moverName: string;
   @Column({ length: 200, default: '' }) moverContact: string;
   @Column({ length: 200 }) origin: string;
   @Column({ length: 200 }) destination: string;
   @Column({ type: 'date' }) movementDate: string;
+  @Column({ type: 'text', default: '' }) notes: string;
+  @CreateDateColumn() createdAt: Date;
+}
+
+@Entity('equipment_entries')
+@Index('UQ_equipment_org_serial', ['organizationId', 'serialNumber'], { unique: true })
+export class EquipmentEntry {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column({ type: 'uuid' }) organizationId: string;
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organizationId' }) organization: Organization;
+  @Column({ length: 200 }) name: string;
+  @Column({ length: 200 }) serialNumber: string;
+  @Column({ length: 200, default: '' }) assetTag: string;
+  @Column({ length: 200, default: '' }) brand: string;
+  @Column({ length: 200, default: '' }) model: string;
+  @Column({ type: 'date' }) dateReceived: string;
   @Column({ type: 'text', default: '' }) notes: string;
   @CreateDateColumn() createdAt: Date;
 }
@@ -203,4 +221,4 @@ export class SignupRequest {
   @CreateDateColumn() createdAt: Date;
 }
 
-export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet, DeviceConfigFile, AssetMovement];
+export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet, DeviceConfigFile, AssetMovement, EquipmentEntry];

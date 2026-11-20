@@ -2,7 +2,7 @@ import { PartialType } from '@nestjs/mapped-types';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min,
-  MinLength, ValidateNested,
+  MinLength, ValidateIf, ValidateNested,
 } from 'class-validator';
 import { CREDENTIAL_TYPES, DEVICE_TYPES, ROLES } from './entities';
 
@@ -74,11 +74,22 @@ export class MovementAssetDto {
 export class CreateAssetMovementDto extends MovementAssetDto {
   @IsOptional() @IsArray() @IsObject({ each: true }) @ValidateNested({ each: true }) @Type(() => MovementAssetDto)
   additionalAssets?: MovementAssetDto[];
+  @ValidateIf((_object, value) => value !== undefined) @IsIn(['inbound', 'outbound']) direction?: 'inbound' | 'outbound';
   @IsString() @Length(1, 200) @Matches(/\S/) moverName: string;
   @IsString() @MaxLength(200) moverContact: string;
   @IsString() @Length(1, 200) @Matches(/\S/) origin: string;
   @IsString() @Length(1, 200) @Matches(/\S/) destination: string;
   @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) movementDate: string;
+  @IsString() @MaxLength(2000) notes: string;
+}
+
+export class EquipmentEntryDto {
+  @IsString() @Length(1, 200) @Matches(/\S/) name: string;
+  @IsString() @Length(1, 200) @Matches(/\S/) serialNumber: string;
+  @IsString() @MaxLength(200) assetTag: string;
+  @IsString() @MaxLength(200) brand: string;
+  @IsString() @MaxLength(200) model: string;
+  @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) dateReceived: string;
   @IsString() @MaxLength(2000) notes: string;
 }
 

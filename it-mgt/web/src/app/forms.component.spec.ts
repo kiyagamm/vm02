@@ -17,7 +17,7 @@ describe('Asset movement forms', () => {
   });
 
   it('saves multiple items on one form and displays them with the organisation logo', async () => {
-    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'engineer', active: true, organization: { id: 'org', name: 'Org' } });
+    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'viewer', active: true, organization: { id: 'org', name: 'Org' } });
     TestBed.inject(BrandingService).branding.set({ companyName: 'Org', logo: 'data:image/png;base64,abc' });
     const fixture = TestBed.createComponent(AssetMovementComponent);
     fixture.detectChanges();
@@ -26,7 +26,7 @@ describe('Asset movement forms', () => {
     const component = fixture.componentInstance;
     component.draft = {
       assetName: ' Laptop ', assetTag: 'A-1', serialNumber: 'S-1', moverName: 'Alex',
-      moverContact: '123', origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: 'Handle carefully',
+      moverContact: '123', origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: 'Handle carefully', direction: 'outbound',
     };
     component.assets = [
       { assetName: ' Laptop ', assetTag: 'A-1', serialNumber: 'S-1' },
@@ -55,7 +55,7 @@ describe('Asset movement forms', () => {
     http.verify();
   });
 
-  it('lets viewers open saved forms but not create them', () => {
+  it('lets viewers create and open saved forms but not edit or delete them', () => {
     TestBed.inject(Auth).user.set({ id: 'u', username: 'viewer', role: 'viewer', active: true });
     const fixture = TestBed.createComponent(AssetMovementComponent);
     fixture.detectChanges();
@@ -63,22 +63,23 @@ describe('Asset movement forms', () => {
       id: 'one', assetName: 'Laptop', moverName: 'Alex', destination: 'Store', movementDate: '2026-11-20',
     }]);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Laptop');
-    (fixture.nativeElement.querySelector('button') as HTMLButtonElement).click();
+    expect(fixture.nativeElement.querySelector('td .danger')).toBeNull();
+    (fixture.nativeElement.querySelector('td button') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.movement-report').textContent).toContain('Laptop');
   });
 
   it('adds and removes items and rejects whitespace-only item names', async () => {
-    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'engineer', active: true });
+    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'viewer', active: true });
     const fixture = TestBed.createComponent(AssetMovementComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/asset-movements').flush([]);
     const component = fixture.componentInstance;
     component.draft = { assetName: '', assetTag: '', serialNumber: '', moverName: 'Alex', moverContact: '',
-      origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: '' };
+      origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: '', direction: 'outbound' };
     component.assets[0].assetName = 'Laptop';
     component.addAsset();
     component.assets[1].assetName = '   ';
@@ -101,14 +102,14 @@ describe('Asset movement forms', () => {
   });
 
   it('keeps the remaining item values when the first item is removed', async () => {
-    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'engineer', active: true });
+    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'viewer', active: true });
     const fixture = TestBed.createComponent(AssetMovementComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/asset-movements').flush([]);
     const component = fixture.componentInstance;
     component.draft = { assetName: '', assetTag: '', serialNumber: '', moverName: 'Alex', moverContact: '',
-      origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: '' };
+      origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: '', direction: 'outbound' };
     component.assets[0].assetName = 'Laptop';
     component.addAsset();
     component.assets[1] = { assetName: 'Monitor', assetTag: 'A-2', serialNumber: 'S-2' };
@@ -124,6 +125,36 @@ describe('Asset movement forms', () => {
     expect(req.request.body.assetName).toBe('Monitor');
     expect(req.request.body.assetTag).toBe('A-2');
     req.flush({ ...req.request.body, id: 'one', createdAt: '2026-11-20T00:00:00Z' });
+    http.verify();
+  });
+
+  it('lets an admin edit and delete a saved movement', async () => {
+    TestBed.inject(Auth).user.set({ id: 'u', username: 'admin', role: 'admin', active: true });
+    const fixture = TestBed.createComponent(AssetMovementComponent);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    const movement = { id: 'one', assetName: 'Laptop', assetTag: '', serialNumber: 'S-1', moverName: 'Alex',
+      moverContact: '', origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: '',
+      direction: 'outbound' as const, createdAt: '2026-11-20T00:00:00Z' };
+    http.expectOne('/api/asset-movements').flush([movement]);
+    fixture.detectChanges();
+    fixture.componentInstance.edit(movement);
+    fixture.componentInstance.draft.direction = 'inbound';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const form = fixture.debugElement.query(By.directive(NgForm)).injector.get(NgForm);
+    fixture.componentInstance.save(form);
+    const update = http.expectOne('/api/asset-movements/one');
+    expect(update.request.method).toBe('PUT');
+    expect(update.request.body.direction).toBe('inbound');
+    update.flush({ ...movement, direction: 'inbound' });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fixture.componentInstance.remove({ ...movement, direction: 'inbound' });
+    const remove = http.expectOne('/api/asset-movements/one');
+    expect(remove.request.method).toBe('DELETE');
+    remove.flush(null);
+    expect(fixture.componentInstance.movements()).toHaveLength(0);
+    confirmSpy.mockRestore();
     http.verify();
   });
 });

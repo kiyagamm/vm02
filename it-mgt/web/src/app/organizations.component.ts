@@ -94,7 +94,7 @@ export class OrganizationsComponent implements OnInit {
     });
   }
   remove(o: OrgSummary) {
-    if (confirm(`Delete organisation "${o.name}"? It must have no clients. Its saved asset movement forms will also be deleted.`)) this.api.deleteOrg(o.id).subscribe({ next: () => this.refreshSession(), error: this.handle.error });
+    if (confirm(`Delete organisation "${o.name}"? It must have no clients. Its saved asset movement and equipment entry forms will also be deleted.`)) this.api.deleteOrg(o.id).subscribe({ next: () => this.refreshSession(), error: this.handle.error });
   }
   enter(id: string) { this.auth.switchOrg(id).subscribe(() => location.assign('/')); }
 

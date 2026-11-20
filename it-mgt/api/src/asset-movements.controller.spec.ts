@@ -25,7 +25,9 @@ describe('AssetMovementsController', () => {
     await controller.create(details, 'org-a', ctx);
     expect(repo.create).toHaveBeenCalledWith({ ...details, organizationId: 'org-a' });
     expect(audit.log).toHaveBeenCalledWith(ctx, 'create', 'asset-movement', 'movement', 'Laptop');
-    expect(Reflect.getMetadata('roles', controller.create)).toEqual(['admin', 'engineer']);
+    expect(Reflect.getMetadata('roles', AssetMovementsController)).toEqual(['admin', 'viewer']);
+    expect(Reflect.getMetadata('roles', controller.update)).toEqual(['admin']);
+    expect(Reflect.getMetadata('roles', controller.remove)).toEqual(['admin']);
   });
 
   it('rejects whitespace-only required fields, invalid dates and a supplied organisation', async () => {
@@ -34,7 +36,26 @@ describe('AssetMovementsController', () => {
     await expect(pipe.transform(details, metadata)).resolves.toBeInstanceOf(CreateAssetMovementDto);
     await expect(pipe.transform({ ...details, destination: '   ' }, metadata)).rejects.toThrow();
     await expect(pipe.transform({ ...details, movementDate: '2026-02-30' }, metadata)).rejects.toThrow();
+    await expect(pipe.transform({ ...details, direction: null }, metadata)).rejects.toThrow();
     await expect(pipe.transform({ ...details, organizationId: 'org-b' }, metadata)).rejects.toThrow();
+  });
+
+  it('only edits and deletes movement forms within the current organisation', async () => {
+    const movement = { ...details, id: 'one', organizationId: 'org-a' };
+    const repo = {
+      findOne: jest.fn().mockResolvedValueOnce(movement).mockResolvedValueOnce(null).mockResolvedValueOnce(movement),
+      save: jest.fn(async (value) => value),
+      remove: jest.fn().mockResolvedValue(undefined),
+    };
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const controller = new AssetMovementsController(repo as unknown as Repository<AssetMovement>, audit as unknown as AuditService);
+    const ctx = { orgId: 'org-a', userId: 'user', username: 'alex', ip: null };
+    await controller.update('one', { ...details, destination: 'New site', direction: 'inbound' }, 'org-a', ctx);
+    expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ destination: 'New site', direction: 'inbound' }));
+    await expect(controller.remove('one', 'org-b', ctx)).rejects.toThrow();
+    await controller.remove('one', 'org-a', ctx);
+    expect(repo.findOne).toHaveBeenCalledWith({ where: { id: 'one', organizationId: 'org-a' } });
+    expect(repo.remove).toHaveBeenCalledTimes(1);
   });
 
   it('validates and saves additional assets while accepting legacy single-item forms', async () => {

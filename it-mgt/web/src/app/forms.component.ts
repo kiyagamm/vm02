@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Api, AssetMovement, AssetMovementDetails, Auth, BrandingService, errMsg, MovementAsset } from './api';
@@ -14,13 +14,18 @@ import { Api, AssetMovement, AssetMovementDetails, Auth, BrandingService, errMsg
       <p>Record the movement of one or more assets and print a copy.</p>
       <a routerLink="/forms/asset-movement">Open asset movement forms</a>
     </div>
+    <div class="card">
+      <h2>Equipment entry</h2>
+      <p>Register equipment and track delivery using movement forms.</p>
+      <a routerLink="/forms/equipment-entry">Open equipment entries</a>
+    </div>
   `,
 })
 export class FormsPageComponent {}
 
 const emptyMovement = (): AssetMovementDetails => ({
   assetName: '', assetTag: '', serialNumber: '', moverName: '', moverContact: '',
-  origin: '', destination: '', movementDate: '', notes: '',
+  origin: '', destination: '', movementDate: '', notes: '', direction: 'outbound',
 });
 const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNumber: '' });
 
@@ -31,12 +36,12 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
     <div class="no-print">
       <a routerLink="/forms">← Forms</a>
       <h1>Asset movement</h1>
-      <p class="muted">Saved forms are available to users in this organisation. Recording a movement does not update the asset inventory.</p>
+      <p class="muted">Saved forms are available to viewers and admins in this organisation. Matching serial numbers update equipment delivery status.</p>
       @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
       @if (loadFailed()) { <button type="button" (click)="load()">Retry loading forms</button> }
-      @if (auth.canWrite()) {
+      @if (auth.canAccessForms()) {
         <form class="card form" #movementForm="ngForm" (ngSubmit)="save(movementForm)">
-          <h3>New movement form</h3>
+          <h3>{{ editingId() ? 'Edit movement form' : 'New movement form' }}</h3>
           <h3>Assets</h3>
           @for (asset of assets; track $index; let i = $index) {
             <div class="movement-asset form">
@@ -53,8 +58,11 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
           <label>Moving from * <input name="origin" [(ngModel)]="draft.origin" required maxlength="200" /></label>
           <label>Destination * <input name="destination" [(ngModel)]="draft.destination" required maxlength="200" /></label>
           <label>Movement date * <input name="movementDate" type="date" [(ngModel)]="draft.movementDate" required /></label>
+          <label>Direction * <select name="direction" [(ngModel)]="draft.direction" required><option value="outbound">Outbound</option><option value="inbound">Inbound</option></select></label>
           <label>Notes <textarea name="notes" [(ngModel)]="draft.notes" maxlength="2000"></textarea></label>
-          <div><button [disabled]="movementForm.invalid || saving() || loading() || loadFailed()">Save form</button></div>
+          <div><button [disabled]="movementForm.invalid || saving() || loading() || loadFailed()">Save form</button>
+            @if (editingId()) { <button type="button" (click)="cancelEdit(movementForm)" [disabled]="saving()">Cancel</button> }
+          </div>
         </form>
       }
       <h2>Saved forms</h2>
@@ -70,7 +78,12 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
               <tr>
                 <td>{{ movement.movementDate }}</td><td>{{ assetNames(movement) }}</td>
                 <td>{{ movement.moverName }}</td><td>{{ movement.destination }}</td>
-                <td><button type="button" class="sm" (click)="selected.set(movement)">View</button></td>
+                <td><button type="button" class="sm" (click)="selected.set(movement)">View</button>
+                  @if (auth.isAdmin()) {
+                    <button type="button" class="sm" (click)="edit(movement)" [disabled]="saving()">Edit</button>
+                    <button type="button" class="sm danger" (click)="remove(movement)" [disabled]="saving()">Delete</button>
+                  }
+                </td>
               </tr>
             }
           </tbody>
@@ -88,6 +101,7 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
           <div><strong>{{ brand.branding().companyName || auth.user()?.organization?.name }}</strong><h2>Asset movement form</h2></div>
         </header>
         <p><b>Movement date:</b> {{ movement.movementDate }}</p>
+        <p><b>Direction:</b> {{ movement.direction === 'inbound' ? 'Inbound' : 'Outbound' }}</p>
         <h3>Asset details</h3>
         @for (asset of movementAssets(movement); track $index; let i = $index) {
           <section class="movement-report-asset">
@@ -110,6 +124,7 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
 })
 export class AssetMovementComponent implements OnInit {
   private api = inject(Api);
+  @ViewChild('movementForm') private movementForm?: NgForm;
   readonly auth = inject(Auth);
   readonly brand = inject(BrandingService);
   movements = signal<AssetMovement[]>([]);
@@ -117,6 +132,7 @@ export class AssetMovementComponent implements OnInit {
   loading = signal(true);
   loadFailed = signal(false);
   saving = signal(false);
+  editingId = signal<string | null>(null);
   error = signal('');
   draft = emptyMovement();
   assets: MovementAsset[] = [emptyAsset()];
@@ -127,6 +143,35 @@ export class AssetMovementComponent implements OnInit {
     return [movement, ...(movement.additionalAssets ?? [])];
   }
   assetNames(movement: AssetMovement) { return this.movementAssets(movement).map((asset) => asset.assetName).join(', '); }
+
+  edit(movement: AssetMovement) {
+    this.editingId.set(movement.id);
+    this.draft = { assetName: movement.assetName, assetTag: movement.assetTag, serialNumber: movement.serialNumber,
+      direction: movement.direction ?? 'outbound', moverName: movement.moverName, moverContact: movement.moverContact,
+      origin: movement.origin, destination: movement.destination, movementDate: movement.movementDate, notes: movement.notes };
+    this.assets = this.movementAssets(movement).map((asset) => ({ assetName: asset.assetName, assetTag: asset.assetTag, serialNumber: asset.serialNumber }));
+    this.error.set('');
+  }
+  cancelEdit(form: NgForm) {
+    this.editingId.set(null);
+    this.draft = emptyMovement();
+    this.assets = [emptyAsset()];
+    form.resetForm({ ...this.draft, assetName0: '', assetTag0: '', serialNumber0: '' });
+  }
+  remove(movement: AssetMovement) {
+    if (!confirm('Delete this movement form? Equipment delivery status will be recalculated.')) return;
+    this.error.set('');
+    this.saving.set(true);
+    this.api.deleteAssetMovement(movement.id).subscribe({
+      next: () => {
+        this.movements.update((items) => items.filter((item) => item.id !== movement.id));
+        if (this.selected()?.id === movement.id) this.selected.set(null);
+        if (this.editingId() === movement.id && this.movementForm) this.cancelEdit(this.movementForm);
+        this.saving.set(false);
+      },
+      error: (e: unknown) => { this.error.set(errMsg(e)); this.saving.set(false); },
+    });
+  }
 
   ngOnInit() { this.load(); }
   load() {
@@ -153,13 +198,13 @@ export class AssetMovementComponent implements OnInit {
     }
     this.error.set('');
     this.saving.set(true);
-    this.api.createAssetMovement(draft).subscribe({
+    const editingId = this.editingId();
+    const request = editingId ? this.api.updateAssetMovement(editingId, draft) : this.api.createAssetMovement(draft);
+    request.subscribe({
       next: (movement) => {
-        this.movements.update((items) => [movement, ...items]);
+        this.movements.update((items) => editingId ? items.map((item) => item.id === movement.id ? movement : item) : [movement, ...items]);
         this.selected.set(movement);
-        this.draft = emptyMovement();
-        this.assets = [emptyAsset()];
-        form.resetForm({ ...this.draft, assetName0: '', assetTag0: '', serialNumber0: '' });
+        this.cancelEdit(form);
         this.saving.set(false);
       },
       error: (e: unknown) => { this.error.set(errMsg(e)); this.saving.set(false); },

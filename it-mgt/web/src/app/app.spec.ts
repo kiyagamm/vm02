@@ -26,9 +26,13 @@ describe('web', () => {
     auth.user.set({ id: '1', username: 'v', role: 'viewer', active: true });
     expect(auth.canWrite()).toBe(false);
     expect(auth.isAdmin()).toBe(false);
+    expect(auth.canAccessForms()).toBe(true);
     auth.user.set({ id: '2', username: 'e', role: 'engineer', active: true });
     expect(auth.canWrite()).toBe(true);
     expect(auth.isAdmin()).toBe(false);
+    expect(auth.canAccessForms()).toBe(false);
+    auth.user.set({ id: '3', username: 'a', role: 'admin', active: true });
+    expect(auth.canAccessForms()).toBe(true);
   });
 
   it('sends only allowed fields on update and nulls empty strings', () => {

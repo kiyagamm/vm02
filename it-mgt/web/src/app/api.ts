@@ -31,10 +31,15 @@ export interface Vm {
 export interface DeviceConfigFile { id: string; deviceId: string; name: string; size: number; createdAt: string }
 export interface MovementAsset { assetName: string; assetTag: string; serialNumber: string }
 export interface AssetMovementDetails extends MovementAsset {
-  additionalAssets?: MovementAsset[] | null; moverName: string; moverContact: string;
+  additionalAssets?: MovementAsset[] | null; direction?: 'inbound' | 'outbound'; moverName: string; moverContact: string;
   origin: string; destination: string; movementDate: string; notes: string;
 }
 export interface AssetMovement extends AssetMovementDetails { id: string; createdAt: string }
+export interface EquipmentDetails {
+  name: string; serialNumber: string; assetTag: string; brand: string; model: string; dateReceived: string; notes: string;
+}
+export interface EquipmentRecord extends EquipmentDetails { id: string; createdAt: string }
+export interface EquipmentEntry extends EquipmentRecord { delivered: boolean; deliveredTo: string | null }
 export interface Credential { id: string; deviceId?: string; vmId?: string; username: string; password: string; type: string; notes?: string }
 export interface AuditEntry { id: string; username: string; action: string; entity: string; entityId?: string; details?: string; ip?: string; timestamp: string }
 export interface SearchHit { type: string; id: string; name: string; clientId: string; detail?: string }
@@ -56,6 +61,7 @@ export class Auth {
   readonly isSuper = computed(() => !!this.user()?.isSuperAdmin);
   readonly isPlatform = computed(() => !!this.user()?.platform);
   readonly canWrite = computed(() => ['admin', 'engineer'].includes(this.user()?.role ?? ''));
+  readonly canAccessForms = computed(() => ['admin', 'viewer'].includes(this.user()?.role ?? ''));
 
   get token() { return localStorage.getItem(TOKEN_KEY); }
 
@@ -160,6 +166,12 @@ export class Api {
   private http = inject(HttpClient);
   assetMovements = () => this.http.get<AssetMovement[]>('/api/asset-movements');
   createAssetMovement = (movement: AssetMovementDetails) => this.http.post<AssetMovement>('/api/asset-movements', movement);
+  updateAssetMovement = (id: string, movement: AssetMovementDetails) => this.http.put<AssetMovement>(`/api/asset-movements/${id}`, movement);
+  deleteAssetMovement = (id: string) => this.http.delete<void>(`/api/asset-movements/${id}`);
+  equipmentEntries = () => this.http.get<EquipmentEntry[]>('/api/equipment-entries');
+  createEquipmentEntry = (entry: EquipmentDetails) => this.http.post<EquipmentRecord>('/api/equipment-entries', entry);
+  updateEquipmentEntry = (id: string, entry: EquipmentDetails) => this.http.put<EquipmentRecord>(`/api/equipment-entries/${id}`, entry);
+  deleteEquipmentEntry = (id: string) => this.http.delete<void>(`/api/equipment-entries/${id}`);
   clients = () => this.http.get<Client[]>('/api/clients');
   client = (id: string) => this.http.get<Client>(`/api/clients/${id}`);
   saveClient = (c: Partial<Client>) => c.id ? this.http.put<Client>(`/api/clients/${c.id}`, pick(c, ['name', 'contact', 'notes'])) : this.http.post<Client>('/api/clients', pick(c, Object.keys(c)));
