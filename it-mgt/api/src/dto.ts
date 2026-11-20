@@ -1,7 +1,8 @@
 import { PartialType } from '@nestjs/mapped-types';
+import { Type } from 'class-transformer';
 import {
   ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min,
-  MinLength,
+  MinLength, ValidateNested,
 } from 'class-validator';
 import { CREDENTIAL_TYPES, DEVICE_TYPES, ROLES } from './entities';
 
@@ -64,10 +65,15 @@ export class UpdateBrandingDto {
   logo?: string | null;
 }
 
-export class CreateAssetMovementDto {
+export class MovementAssetDto {
   @IsString() @Length(1, 200) @Matches(/\S/) assetName: string;
   @IsString() @MaxLength(200) assetTag: string;
   @IsString() @MaxLength(200) serialNumber: string;
+}
+
+export class CreateAssetMovementDto extends MovementAssetDto {
+  @IsOptional() @IsArray() @IsObject({ each: true }) @ValidateNested({ each: true }) @Type(() => MovementAssetDto)
+  additionalAssets?: MovementAssetDto[];
   @IsString() @Length(1, 200) @Matches(/\S/) moverName: string;
   @IsString() @MaxLength(200) moverContact: string;
   @IsString() @Length(1, 200) @Matches(/\S/) origin: string;

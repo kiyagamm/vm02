@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Api, AssetMovement, AssetMovementDetails, Auth, BrandingService, errMsg } from './api';
+import { Api, AssetMovement, AssetMovementDetails, Auth, BrandingService, errMsg, MovementAsset } from './api';
 
 @Component({
   selector: 'app-forms',
@@ -11,7 +11,7 @@ import { Api, AssetMovement, AssetMovementDetails, Auth, BrandingService, errMsg
     <p class="muted">Create and view forms for your organisation.</p>
     <div class="card">
       <h2>Asset movement</h2>
-      <p>Record an asset's movement and print a copy.</p>
+      <p>Record the movement of one or more assets and print a copy.</p>
       <a routerLink="/forms/asset-movement">Open asset movement forms</a>
     </div>
   `,
@@ -22,6 +22,7 @@ const emptyMovement = (): AssetMovementDetails => ({
   assetName: '', assetTag: '', serialNumber: '', moverName: '', moverContact: '',
   origin: '', destination: '', movementDate: '', notes: '',
 });
+const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNumber: '' });
 
 @Component({
   selector: 'app-asset-movement',
@@ -36,10 +37,18 @@ const emptyMovement = (): AssetMovementDetails => ({
       @if (auth.canWrite()) {
         <form class="card form" #movementForm="ngForm" (ngSubmit)="save(movementForm)">
           <h3>New movement form</h3>
-          <label>Asset name or description * <input name="assetName" [(ngModel)]="draft.assetName" required maxlength="200" /></label>
-          <label>Asset tag <input name="assetTag" [(ngModel)]="draft.assetTag" maxlength="200" /></label>
-          <label>Serial number <input name="serialNumber" [(ngModel)]="draft.serialNumber" maxlength="200" /></label>
-          <label>Person moving the asset * <input name="moverName" [(ngModel)]="draft.moverName" required maxlength="200" /></label>
+          <h3>Assets</h3>
+          @for (asset of assets; track $index; let i = $index) {
+            <div class="movement-asset form">
+              <h3>Item {{ i + 1 }}</h3>
+              <label>Asset name or description * <input [name]="'assetName' + i" [(ngModel)]="asset.assetName" required maxlength="200" /></label>
+              <label>Asset tag <input [name]="'assetTag' + i" [(ngModel)]="asset.assetTag" maxlength="200" /></label>
+              <label>Serial number <input [name]="'serialNumber' + i" [(ngModel)]="asset.serialNumber" maxlength="200" /></label>
+              @if (assets.length > 1) { <div><button type="button" class="sm" (click)="removeAsset(i)">Remove item {{ i + 1 }}</button></div> }
+            </div>
+          }
+          <div><button type="button" (click)="addAsset()">Add another item</button></div>
+          <label>Person moving the assets * <input name="moverName" [(ngModel)]="draft.moverName" required maxlength="200" /></label>
           <label>Person's contact details <input name="moverContact" [(ngModel)]="draft.moverContact" maxlength="200" /></label>
           <label>Moving from * <input name="origin" [(ngModel)]="draft.origin" required maxlength="200" /></label>
           <label>Destination * <input name="destination" [(ngModel)]="draft.destination" required maxlength="200" /></label>
@@ -59,7 +68,7 @@ const emptyMovement = (): AssetMovementDetails => ({
           <tbody>
             @for (movement of movements(); track movement.id) {
               <tr>
-                <td>{{ movement.movementDate }}</td><td>{{ movement.assetName }}</td>
+                <td>{{ movement.movementDate }}</td><td>{{ assetNames(movement) }}</td>
                 <td>{{ movement.moverName }}</td><td>{{ movement.destination }}</td>
                 <td><button type="button" class="sm" (click)="selected.set(movement)">View</button></td>
               </tr>
@@ -80,10 +89,14 @@ const emptyMovement = (): AssetMovementDetails => ({
         </header>
         <p><b>Movement date:</b> {{ movement.movementDate }}</p>
         <h3>Asset details</h3>
-        <p><b>Asset:</b> {{ movement.assetName }}</p>
-        <p><b>Asset tag:</b> {{ movement.assetTag || '—' }}</p>
-        <p><b>Serial number:</b> {{ movement.serialNumber || '—' }}</p>
-        <h3>Person moving the asset</h3>
+        @for (asset of movementAssets(movement); track $index; let i = $index) {
+          <section class="movement-report-asset">
+            <p><b>Item {{ i + 1 }}:</b> {{ asset.assetName }}</p>
+            <p><b>Asset tag:</b> {{ asset.assetTag || '—' }}</p>
+            <p><b>Serial number:</b> {{ asset.serialNumber || '—' }}</p>
+          </section>
+        }
+        <h3>Person moving the assets</h3>
         <p><b>Name:</b> {{ movement.moverName }}</p>
         <p><b>Contact:</b> {{ movement.moverContact || '—' }}</p>
         <h3>Movement details</h3>
@@ -106,6 +119,14 @@ export class AssetMovementComponent implements OnInit {
   saving = signal(false);
   error = signal('');
   draft = emptyMovement();
+  assets: MovementAsset[] = [emptyAsset()];
+
+  addAsset() { this.assets.push(emptyAsset()); }
+  removeAsset(index: number) { if (this.assets.length > 1) this.assets.splice(index, 1); }
+  movementAssets(movement: AssetMovement): MovementAsset[] {
+    return [movement, ...(movement.additionalAssets ?? [])];
+  }
+  assetNames(movement: AssetMovement) { return this.movementAssets(movement).map((asset) => asset.assetName).join(', '); }
 
   ngOnInit() { this.load(); }
   load() {
@@ -120,12 +141,13 @@ export class AssetMovementComponent implements OnInit {
 
   save(form: NgForm) {
     if (form.invalid || this.saving() || this.loading() || this.loadFailed()) return;
-    const draft = {
+    const assets = this.assets.map((asset) => ({ ...asset, assetName: asset.assetName.trim() }));
+    const draft: AssetMovementDetails = {
       ...this.draft,
-      assetName: this.draft.assetName.trim(), moverName: this.draft.moverName.trim(),
+      ...assets[0], additionalAssets: assets.slice(1), moverName: this.draft.moverName.trim(),
       origin: this.draft.origin.trim(), destination: this.draft.destination.trim(),
     };
-    if (!draft.assetName || !draft.moverName || !draft.origin || !draft.destination) {
+    if (assets.some((asset) => !asset.assetName) || !draft.moverName || !draft.origin || !draft.destination) {
       this.error.set('Complete all required fields.');
       return;
     }
@@ -136,7 +158,8 @@ export class AssetMovementComponent implements OnInit {
         this.movements.update((items) => [movement, ...items]);
         this.selected.set(movement);
         this.draft = emptyMovement();
-        form.resetForm(this.draft);
+        this.assets = [emptyAsset()];
+        form.resetForm({ ...this.draft, assetName0: '', assetTag0: '', serialNumber0: '' });
         this.saving.set(false);
       },
       error: (e: unknown) => { this.error.set(errMsg(e)); this.saving.set(false); },

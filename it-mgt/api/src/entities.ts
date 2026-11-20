@@ -168,6 +168,12 @@ export class DeviceConfigFile {
   @CreateDateColumn() createdAt: Date;
 }
 
+export interface MovementAsset {
+  assetName: string;
+  assetTag: string;
+  serialNumber: string;
+}
+
 @Entity('asset_movements')
 export class AssetMovement {
   @PrimaryGeneratedColumn('uuid') id: string;
@@ -177,6 +183,7 @@ export class AssetMovement {
   @Column({ length: 200 }) assetName: string;
   @Column({ length: 200, default: '' }) assetTag: string;
   @Column({ length: 200, default: '' }) serialNumber: string;
+  @Column({ type: 'jsonb', nullable: true }) additionalAssets: MovementAsset[] | null;
   @Column({ length: 200 }) moverName: string;
   @Column({ length: 200, default: '' }) moverContact: string;
   @Column({ length: 200 }) origin: string;

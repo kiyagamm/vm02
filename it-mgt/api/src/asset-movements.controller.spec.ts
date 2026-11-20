@@ -36,4 +36,24 @@ describe('AssetMovementsController', () => {
     await expect(pipe.transform({ ...details, movementDate: '2026-02-30' }, metadata)).rejects.toThrow();
     await expect(pipe.transform({ ...details, organizationId: 'org-b' }, metadata)).rejects.toThrow();
   });
+
+  it('validates and saves additional assets while accepting legacy single-item forms', async () => {
+    const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+    const metadata = { type: 'body' as const, metatype: CreateAssetMovementDto };
+    const additionalAssets = [{ assetName: 'Monitor', assetTag: 'A-2', serialNumber: 'S-2' }];
+    const dto = await pipe.transform({ ...details, additionalAssets }, metadata);
+    const repo = {
+      create: jest.fn((value) => value),
+      save: jest.fn(async (value) => ({ ...value, id: 'movement' })),
+    };
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    const controller = new AssetMovementsController(repo as unknown as Repository<AssetMovement>, audit as unknown as AuditService);
+    const saved = await controller.create(dto, 'org-a', { orgId: 'org-a', userId: 'user', username: 'alex', ip: null });
+    expect(saved.additionalAssets).toEqual(additionalAssets);
+    await expect(pipe.transform(details, metadata)).resolves.toBeInstanceOf(CreateAssetMovementDto);
+    await expect(pipe.transform({ ...details, additionalAssets: [{ ...additionalAssets[0], assetName: '  ' }] }, metadata)).rejects.toThrow();
+    await expect(pipe.transform({ ...details, additionalAssets: [{ ...additionalAssets[0], organizationId: 'other' }] }, metadata)).rejects.toThrow();
+    await expect(pipe.transform({ ...details, additionalAssets: 'invalid' }, metadata)).rejects.toThrow();
+    await expect(pipe.transform({ ...details, additionalAssets: [additionalAssets] }, metadata)).rejects.toThrow();
+  });
 });
