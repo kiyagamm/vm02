@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Api, Auth, OrgSummary, PlatformOverview, PlatformService, Theme, User, errMsg } from './api';
+import { Api, Auth, OrgSummary, PlatformOverview, PlatformService, User, errMsg } from './api';
 
 const MAX_LOGO_BYTES = 500 * 1024;
 
@@ -132,7 +132,6 @@ export class PlatformUsersComponent implements OnInit {
 })
 export class PlatformSettingsComponent {
   private plat = inject(PlatformService);
-  private theme = inject(Theme);
   private s = this.plat.settings();
   name = this.s.name;
   tagline = this.s.tagline ?? '';
@@ -156,7 +155,7 @@ export class PlatformSettingsComponent {
     const patch: Record<string, unknown> = { name: this.name, tagline: this.tagline, accent: this.accent, theme: this.themeChoice };
     if (this.logoChanged) patch['logo'] = this.logo();
     this.plat.save(patch).subscribe({
-      next: () => { this.logoChanged = false; this.theme.set(this.themeChoice); this.ok.set(true); this.msg.set('Saved.'); },
+      next: () => { this.logoChanged = false; this.ok.set(true); this.msg.set('Saved.'); },
       error: (e) => { this.ok.set(false); this.msg.set(errMsg(e)); },
     });
   }

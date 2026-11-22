@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient, HttpInterceptorFn } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap } from 'rxjs';
@@ -130,21 +130,30 @@ export class PlatformService {
     this.settings.set(s);
     document.documentElement.style.setProperty('--accent', s.accent);
     document.title = s.name;
-    if (!localStorage.getItem('itmgt.theme')) document.documentElement.setAttribute('data-theme', s.theme);
   }
 }
 
 @Injectable({ providedIn: 'root' })
 export class Theme {
-  readonly theme = signal<ThemeName>(localStorage.getItem('itmgt.theme') === 'dark' ? 'dark' : 'light');
+  private auth = inject(Auth);
+  private platform = inject(PlatformService);
+  private revision = signal(0);
+  readonly theme = computed<ThemeName>(() => {
+    this.revision();
+    const user = this.auth.user();
+    const saved = user ? localStorage.getItem(`itmgt.theme.${user.id}`) : null;
+    return saved === 'light' || saved === 'dark' ? saved : this.platform.settings().theme;
+  });
 
-  constructor() { this.apply(); }
-  set(t: ThemeName) {
-    this.theme.set(t);
-    localStorage.setItem('itmgt.theme', t);
-    this.apply();
+  constructor() {
+    effect(() => document.documentElement.setAttribute('data-theme', this.theme()));
   }
-  private apply() { document.documentElement.setAttribute('data-theme', this.theme()); }
+  set(t: ThemeName) {
+    const user = this.auth.user();
+    if (!user) throw new Error('Sign in before choosing a theme.');
+    localStorage.setItem(`itmgt.theme.${user.id}`, t);
+    this.revision.update((revision) => revision + 1);
+  }
 }
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {

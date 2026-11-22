@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
-import { Api, Auth } from './api';
+import { Api, Auth, PlatformService, Theme } from './api';
 import { App } from './app';
 import { routes } from './app.routes';
 
@@ -47,6 +47,43 @@ describe('web', () => {
     auth.user.set({ id: '1', username: 'member', role: 'admin', active: true, platform: true });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.usermenu .whoami').textContent.trim()).toBe('member ▾');
+  });
+
+  it('keeps browser theme preferences separate for each user and from the platform default', () => {
+    localStorage.setItem('itmgt.theme', 'dark');
+    const auth = TestBed.inject(Auth);
+    auth.user.set({ id: 'one', username: 'one', role: 'viewer', active: true });
+    const fixture = TestBed.createComponent(App);
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/settings/platform').flush({ name: 'Platform', tagline: null, logo: null, accent: '#000000', theme: 'light' });
+    fixture.detectChanges();
+    const theme = TestBed.inject(Theme);
+    expect(theme.theme()).toBe('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    theme.set('dark');
+    fixture.detectChanges();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+
+    auth.user.set({ id: 'two', username: 'two', role: 'viewer', active: true });
+    fixture.detectChanges();
+    expect(theme.theme()).toBe('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    theme.set('light');
+    TestBed.inject(PlatformService).save({ theme: 'dark' }).subscribe();
+    http.expectOne('/api/settings/platform').flush({ name: 'Platform', tagline: null, logo: null, accent: '#000000', theme: 'dark' });
+    fixture.detectChanges();
+    expect(theme.theme()).toBe('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+
+    auth.user.set(null);
+    fixture.detectChanges();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    auth.user.set({ id: 'one', username: 'one', role: 'viewer', active: true });
+    fixture.detectChanges();
+    expect(theme.theme()).toBe('dark');
+    auth.user.set({ id: 'two', username: 'two', role: 'viewer', active: true });
+    fixture.detectChanges();
+    expect(theme.theme()).toBe('light');
   });
 
   it('opens the mobile menu and closes it after navigating to a lazy-loaded form', async () => {

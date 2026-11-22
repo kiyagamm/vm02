@@ -18,7 +18,7 @@ const MAX_LOGO_BYTES = 500 * 1024;
           <option value="dark">Dark</option>
         </select>
       </label>
-      <p class="muted">Saved in this browser only.</p>
+      <p class="muted">Saved for your account in this browser only.</p>
     </section>
 
     <form class="card form" (ngSubmit)="saveProfile()">
