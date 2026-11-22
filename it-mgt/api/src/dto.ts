@@ -69,6 +69,8 @@ export class MovementAssetDto {
   @IsString() @Length(1, 200) @Matches(/\S/) assetName: string;
   @IsString() @MaxLength(200) assetTag: string;
   @IsString() @MaxLength(200) serialNumber: string;
+  @IsOptional() @IsString() @MaxLength(200) brand?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) model?: string | null;
 }
 
 export class CreateAssetMovementDto extends MovementAssetDto {

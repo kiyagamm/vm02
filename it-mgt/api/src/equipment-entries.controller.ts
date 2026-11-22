@@ -4,7 +4,8 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { AuditService } from './audit.service';
 import { Ctx, Org, ReqCtx, Roles } from './auth';
 import { EquipmentEntryDto } from './dto';
-import { AssetMovement, EquipmentEntry } from './entities';
+import { EquipmentEntry } from './entities';
+import { EquipmentReportService } from './equipment-report.service';
 
 const serialKey = (serial: string) => serial.trim().toUpperCase();
 
@@ -13,29 +14,12 @@ const serialKey = (serial: string) => serial.trim().toUpperCase();
 export class EquipmentEntriesController {
   constructor(
     @InjectRepository(EquipmentEntry) private repo: Repository<EquipmentEntry>,
-    @InjectRepository(AssetMovement) private movements: Repository<AssetMovement>,
+    private reports: EquipmentReportService,
     private audit: AuditService,
   ) {}
 
   @Get()
-  async list(@Org() orgId: string) {
-    const [entries, movements] = await Promise.all([
-      this.repo.find({ where: { organizationId: orgId }, order: { createdAt: 'DESC' } }),
-      this.movements.find({ where: { organizationId: orgId }, order: { movementDate: 'DESC', createdAt: 'DESC', id: 'DESC' } }),
-    ]);
-    const latest = new Map<string, AssetMovement>();
-    for (const movement of movements) {
-      for (const asset of [movement, ...(movement.additionalAssets ?? [])]) {
-        const serial = serialKey(asset.serialNumber);
-        if (serial && !latest.has(serial)) latest.set(serial, movement);
-      }
-    }
-    return entries.map((entry) => {
-      const movement = latest.get(serialKey(entry.serialNumber));
-      const delivered = movement?.direction === 'outbound';
-      return { ...entry, delivered, deliveredTo: delivered ? movement.destination : null };
-    });
-  }
+  list(@Org() orgId: string) { return this.reports.list(orgId); }
 
   private async save(entry: EquipmentEntry, dto: EquipmentEntryDto) {
     const serialNumber = serialKey(dto.serialNumber);

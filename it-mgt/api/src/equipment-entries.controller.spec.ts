@@ -4,6 +4,8 @@ import { AuditService } from './audit.service';
 import { EquipmentEntryDto } from './dto';
 import { AssetMovement, EquipmentEntry } from './entities';
 import { EquipmentEntriesController } from './equipment-entries.controller';
+import { EquipmentReportService } from './equipment-report.service';
+import { ReportsController } from './reports.controller';
 
 const details = { name: 'Laptop', serialNumber: ' s-1 ', assetTag: '', brand: '', model: '', dateReceived: '2026-11-20', notes: '' };
 const ctx = { orgId: 'org-a', userId: 'user', username: 'alex', ip: null };
@@ -18,8 +20,8 @@ describe('Equipment entries', () => {
       { direction: 'outbound', serialNumber: '', additionalAssets: [{ serialNumber: ' s-2 ' }], destination: 'Warehouse' },
       { direction: 'outbound', serialNumber: 'S-1', additionalAssets: [], destination: 'Old site' },
     ]) };
-    const controller = new EquipmentEntriesController(repo as unknown as Repository<EquipmentEntry>,
-      movements as unknown as Repository<AssetMovement>, {} as AuditService);
+    const controller = new EquipmentReportService(repo as unknown as Repository<EquipmentEntry>,
+      movements as unknown as Repository<AssetMovement>);
     const result = await controller.list('org-a');
     expect(result.map(({ delivered, deliveredTo }) => ({ delivered, deliveredTo }))).toEqual([
       { delivered: false, deliveredTo: null }, { delivered: true, deliveredTo: 'Warehouse' }, { delivered: false, deliveredTo: null },
@@ -38,7 +40,7 @@ describe('Equipment entries', () => {
     };
     const audit = { log: jest.fn().mockResolvedValue(undefined) };
     const controller = new EquipmentEntriesController(repo as unknown as Repository<EquipmentEntry>,
-      {} as Repository<AssetMovement>, audit as unknown as AuditService);
+      {} as EquipmentReportService, audit as unknown as AuditService);
     const entry = await controller.create(details, 'org-a', ctx);
     expect(entry.serialNumber).toBe('S-1');
     expect(repo.create).toHaveBeenCalledWith({ organizationId: 'org-a' });
@@ -59,5 +61,15 @@ describe('Equipment entries', () => {
     await expect(pipe.transform({ ...details, serialNumber: '  ' }, metadata)).rejects.toThrow();
     await expect(pipe.transform({ ...details, dateReceived: '2026-02-30' }, metadata)).rejects.toThrow();
     await expect(pipe.transform({ ...details, organizationId: 'other' }, metadata)).rejects.toThrow();
+  });
+
+  it('scopes equipment reports and omits organisation identifiers', async () => {
+    const reports = { list: jest.fn().mockResolvedValue([{ id: 'one', organizationId: 'org-a', name: 'Laptop',
+      serialNumber: 'S-1', assetTag: '', brand: '', model: '', dateReceived: '2026-01-01', notes: '',
+      createdAt: new Date(), delivered: true, deliveredTo: 'Site' }]) };
+    const result = await new ReportsController(reports as unknown as EquipmentReportService).equipmentList('org-a');
+    expect(reports.list).toHaveBeenCalledWith('org-a');
+    expect(result[0]).toMatchObject({ name: 'Laptop', delivered: true, deliveredTo: 'Site' });
+    expect(result[0]).not.toHaveProperty('organizationId');
   });
 });

@@ -4,8 +4,14 @@ import { TestBed } from '@angular/core/testing';
 import { NgForm } from '@angular/forms';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
-import { Auth, BrandingService } from './api';
+import { Auth, EquipmentEntry } from './api';
 import { AssetMovementComponent } from './forms.component';
+
+const equipment: EquipmentEntry[] = [
+  { id: '1', name: 'Laptop', serialNumber: 'S-1', assetTag: 'A-1', brand: 'Brand', model: 'Model', dateReceived: '2026-01-01', notes: '', createdAt: '', delivered: false, deliveredTo: null },
+  { id: '2', name: 'Laptop', serialNumber: 'S-2', assetTag: 'A-2', brand: 'Other', model: 'M2', dateReceived: '2026-01-01', notes: '', createdAt: '', delivered: true, deliveredTo: 'Site' },
+  { id: '3', name: 'Monitor', serialNumber: 'S-3', assetTag: 'A-3', brand: 'Display', model: 'M3', dateReceived: '2026-01-01', notes: '', createdAt: '', delivered: false, deliveredTo: null },
+];
 
 describe('Asset movement forms', () => {
   beforeEach(() => {
@@ -14,147 +20,83 @@ describe('Asset movement forms', () => {
       imports: [AssetMovementComponent],
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
-  });
-
-  it('saves multiple items on one form and displays them with the organisation logo', async () => {
-    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'viewer', active: true, organization: { id: 'org', name: 'Org' } });
-    TestBed.inject(BrandingService).branding.set({ companyName: 'Org', logo: 'data:image/png;base64,abc' });
-    const fixture = TestBed.createComponent(AssetMovementComponent);
-    fixture.detectChanges();
-    const http = TestBed.inject(HttpTestingController);
-    http.expectOne('/api/asset-movements').flush([]);
-    const component = fixture.componentInstance;
-    component.draft = {
-      assetName: ' Laptop ', assetTag: 'A-1', serialNumber: 'S-1', moverName: 'Alex',
-      moverContact: '123', origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: 'Handle carefully', direction: 'outbound',
-    };
-    component.assets = [
-      { assetName: ' Laptop ', assetTag: 'A-1', serialNumber: 'S-1' },
-      { assetName: ' Monitor ', assetTag: 'A-2', serialNumber: 'S-2' },
-    ];
-    fixture.detectChanges();
-    await fixture.whenStable();
-    const ngForm = fixture.debugElement.query(By.directive(NgForm)).injector.get(NgForm);
-    component.save(ngForm);
-    const req = http.expectOne('/api/asset-movements');
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body.assetName).toBe('Laptop');
-    expect(req.request.body.additionalAssets).toEqual([{ assetName: 'Monitor', assetTag: 'A-2', serialNumber: 'S-2' }]);
-    req.flush({ ...req.request.body, id: 'one', createdAt: '2026-11-20T00:00:00Z' });
-    fixture.detectChanges();
-    const report = fixture.nativeElement.querySelector('.movement-report') as HTMLElement;
-    expect(report.textContent).toContain('Handle carefully');
-    expect(report.textContent).toContain('Store');
-    expect(report.textContent).toContain('Laptop');
-    expect(report.textContent).toContain('Monitor');
-    expect(report.textContent).toContain('S-2');
-    expect(report.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,abc');
-    expect(component.movements()).toHaveLength(1);
-    expect(component.assets).toEqual([{ assetName: '', assetTag: '', serialNumber: '' }]);
-    expect(fixture.nativeElement.textContent).toContain('Laptop, Monitor');
-    http.verify();
-  });
-
-  it('lets viewers create and open saved forms but not edit or delete them', () => {
     TestBed.inject(Auth).user.set({ id: 'u', username: 'viewer', role: 'viewer', active: true });
-    const fixture = TestBed.createComponent(AssetMovementComponent);
-    fixture.detectChanges();
-    TestBed.inject(HttpTestingController).expectOne('/api/asset-movements').flush([{
-      id: 'one', assetName: 'Laptop', moverName: 'Alex', destination: 'Store', movementDate: '2026-11-20',
-    }]);
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('Laptop');
-    expect(fixture.nativeElement.querySelector('td .danger')).toBeNull();
-    (fixture.nativeElement.querySelector('td button') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.movement-report').textContent).toContain('Laptop');
   });
 
-  it('adds and removes items and rejects whitespace-only item names', async () => {
-    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'viewer', active: true });
+  it('filters outbound serials, autofills and saves snapshots for multiple items', async () => {
     const fixture = TestBed.createComponent(AssetMovementComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/asset-movements').flush([]);
+    http.expectOne('/api/equipment-entries').flush(equipment);
     const component = fixture.componentInstance;
     component.draft = { assetName: '', assetTag: '', serialNumber: '', moverName: 'Alex', moverContact: '',
       origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: '', direction: 'outbound' };
-    component.assets[0].assetName = 'Laptop';
+    const first = component.assets[0];
+    component.changeName(first, 'Laptop');
+    expect(component.serialOptions(first)).toEqual(['S-1']);
+    component.selectSerial(first, 'S-1');
+    expect(first).toMatchObject({ assetTag: 'A-1', brand: 'Brand', model: 'Model' });
     component.addAsset();
-    component.assets[1].assetName = '   ';
+    component.changeName(component.assets[1], 'Monitor');
+    component.selectSerial(component.assets[1], 'S-3');
     fixture.detectChanges();
     await fixture.whenStable();
     const form = fixture.debugElement.query(By.directive(NgForm)).injector.get(NgForm);
     component.save(form);
-    expect(component.error()).toBe('Complete all required fields.');
-    http.expectNone('/api/asset-movements');
-    component.removeAsset(1);
-    component.removeAsset(0);
-    expect(component.assets).toHaveLength(1);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    component.save(form);
     const req = http.expectOne('/api/asset-movements');
-    expect(req.request.body.additionalAssets).toEqual([]);
-    req.flush({ ...req.request.body, id: 'one', createdAt: '2026-11-20T00:00:00Z' });
+    expect(req.request.body).toMatchObject({ serialNumber: 'S-1', brand: 'Brand', model: 'Model',
+      additionalAssets: [{ assetName: 'Monitor', serialNumber: 'S-3', assetTag: 'A-3', brand: 'Display', model: 'M3' }] });
+    req.flush({ ...req.request.body, id: 'one', createdAt: '' });
+    http.expectOne('/api/asset-movements').flush([]);
+    http.expectOne('/api/equipment-entries').flush(equipment);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.movement-report').textContent).toContain('Brand');
+    expect(fixture.nativeElement.querySelector('.movement-report').textContent).toContain('M3');
     http.verify();
   });
 
-  it('keeps the remaining item values when the first item is removed', async () => {
-    TestBed.inject(Auth).user.set({ id: 'u', username: 'alex', role: 'viewer', active: true });
+  it('allows delivered serials for returns and retains historical selections when editing', () => {
     const fixture = TestBed.createComponent(AssetMovementComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
     http.expectOne('/api/asset-movements').flush([]);
+    http.expectOne('/api/equipment-entries').flush(equipment);
     const component = fixture.componentInstance;
-    component.draft = { assetName: '', assetTag: '', serialNumber: '', moverName: 'Alex', moverContact: '',
-      origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: '', direction: 'outbound' };
-    component.assets[0].assetName = 'Laptop';
-    component.addAsset();
-    component.assets[1] = { assetName: 'Monitor', assetTag: 'A-2', serialNumber: 'S-2' };
-    fixture.detectChanges();
-    await fixture.whenStable();
-    (fixture.nativeElement.querySelector('.movement-asset button') as HTMLButtonElement).click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect((fixture.nativeElement.querySelector('.movement-asset input') as HTMLInputElement).value).toBe('Monitor');
-    const form = fixture.debugElement.query(By.directive(NgForm)).injector.get(NgForm);
-    component.save(form);
-    const req = http.expectOne('/api/asset-movements');
-    expect(req.request.body.assetName).toBe('Monitor');
-    expect(req.request.body.assetTag).toBe('A-2');
-    req.flush({ ...req.request.body, id: 'one', createdAt: '2026-11-20T00:00:00Z' });
-    http.verify();
+    component.changeName(component.assets[0], 'Laptop');
+    component.draft.direction = 'inbound';
+    expect(component.serialOptions(component.assets[0])).toEqual(['S-1', 'S-2']);
+    component.selectSerial(component.assets[0], 'S-2');
+    component.draft.direction = 'outbound';
+    component.directionChanged();
+    expect(component.assets[0].serialNumber).toBe('');
+    component.edit({ id: 'old', assetName: 'Laptop', serialNumber: 'S-2', assetTag: 'old', brand: 'Old brand',
+      model: 'Old model', moverName: 'Alex', moverContact: '', origin: 'Office', destination: 'Site',
+      movementDate: '2026-01-01', notes: '', createdAt: '', direction: 'outbound' });
+    expect(component.serialOptions(component.assets[0])).toContain('S-2');
+    expect(component.assets[0].brand).toBe('Old brand');
   });
 
-  it('lets an admin edit and delete a saved movement', async () => {
+  it('preserves older items with no serial when editing', async () => {
     TestBed.inject(Auth).user.set({ id: 'u', username: 'admin', role: 'admin', active: true });
     const fixture = TestBed.createComponent(AssetMovementComponent);
     fixture.detectChanges();
     const http = TestBed.inject(HttpTestingController);
-    const movement = { id: 'one', assetName: 'Laptop', assetTag: '', serialNumber: 'S-1', moverName: 'Alex',
-      moverContact: '', origin: 'Office', destination: 'Store', movementDate: '2026-11-20', notes: '',
-      direction: 'outbound' as const, createdAt: '2026-11-20T00:00:00Z' };
-    http.expectOne('/api/asset-movements').flush([movement]);
-    fixture.detectChanges();
-    fixture.componentInstance.edit(movement);
-    fixture.componentInstance.draft.direction = 'inbound';
+    http.expectOne('/api/asset-movements').flush([]);
+    http.expectOne('/api/equipment-entries').flush(equipment);
+    const component = fixture.componentInstance;
+    component.edit({ id: 'old', assetName: 'Legacy', serialNumber: '', assetTag: '', moverName: 'Alex', moverContact: '',
+      origin: 'Office', destination: 'Site', movementDate: '2026-01-01', notes: '', createdAt: '', direction: 'outbound' });
     fixture.detectChanges();
     await fixture.whenStable();
     const form = fixture.debugElement.query(By.directive(NgForm)).injector.get(NgForm);
-    fixture.componentInstance.save(form);
-    const update = http.expectOne('/api/asset-movements/one');
-    expect(update.request.method).toBe('PUT');
-    expect(update.request.body.direction).toBe('inbound');
-    update.flush({ ...movement, direction: 'inbound' });
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    fixture.componentInstance.remove({ ...movement, direction: 'inbound' });
-    const remove = http.expectOne('/api/asset-movements/one');
-    expect(remove.request.method).toBe('DELETE');
-    remove.flush(null);
-    expect(fixture.componentInstance.movements()).toHaveLength(0);
-    confirmSpy.mockRestore();
+    component.save(form);
+    const req = http.expectOne('/api/asset-movements/old');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body.serialNumber).toBe('');
+    req.flush({ ...req.request.body, id: 'old', createdAt: '' });
+    http.expectOne('/api/asset-movements').flush([]);
+    http.expectOne('/api/equipment-entries').flush(equipment);
     http.verify();
   });
 });

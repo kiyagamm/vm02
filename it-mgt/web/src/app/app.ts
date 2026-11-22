@@ -44,6 +44,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
         </a>
         <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Clients</a>
         @if (auth.canAccessForms()) { <a routerLink="/forms" routerLinkActive="active">Forms</a> }
+        <a routerLink="/reports" routerLinkActive="active">Reports</a>
         @if (auth.canWrite()) { <a routerLink="/snippets" routerLinkActive="active">Config snippets</a> }
         @if (u.role === 'admin') {
           <a routerLink="/audit" routerLinkActive="active">Audit log</a>

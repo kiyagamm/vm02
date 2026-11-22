@@ -172,6 +172,8 @@ export interface MovementAsset {
   assetName: string;
   assetTag: string;
   serialNumber: string;
+  brand?: string | null;
+  model?: string | null;
 }
 
 @Entity('asset_movements')
@@ -183,6 +185,8 @@ export class AssetMovement {
   @Column({ length: 200 }) assetName: string;
   @Column({ length: 200, default: '' }) assetTag: string;
   @Column({ length: 200, default: '' }) serialNumber: string;
+  @Column({ type: 'varchar', length: 200, nullable: true }) brand: string | null;
+  @Column({ type: 'varchar', length: 200, nullable: true }) model: string | null;
   @Column({ type: 'jsonb', nullable: true }) additionalAssets: MovementAsset[] | null;
   @Column({ type: 'varchar', default: 'outbound' }) direction: 'inbound' | 'outbound';
   @Column({ length: 200 }) moverName: string;

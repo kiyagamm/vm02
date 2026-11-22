@@ -29,7 +29,7 @@ export interface Vm {
   diskGb?: number; status: string; purpose?: string; metadata: Record<string, unknown>;
 }
 export interface DeviceConfigFile { id: string; deviceId: string; name: string; size: number; createdAt: string }
-export interface MovementAsset { assetName: string; assetTag: string; serialNumber: string }
+export interface MovementAsset { assetName: string; assetTag: string; serialNumber: string; brand?: string | null; model?: string | null }
 export interface AssetMovementDetails extends MovementAsset {
   additionalAssets?: MovementAsset[] | null; direction?: 'inbound' | 'outbound'; moverName: string; moverContact: string;
   origin: string; destination: string; movementDate: string; notes: string;
@@ -169,6 +169,7 @@ export class Api {
   updateAssetMovement = (id: string, movement: AssetMovementDetails) => this.http.put<AssetMovement>(`/api/asset-movements/${id}`, movement);
   deleteAssetMovement = (id: string) => this.http.delete<void>(`/api/asset-movements/${id}`);
   equipmentEntries = () => this.http.get<EquipmentEntry[]>('/api/equipment-entries');
+  equipmentReport = () => this.http.get<EquipmentEntry[]>('/api/reports/equipment');
   createEquipmentEntry = (entry: EquipmentDetails) => this.http.post<EquipmentRecord>('/api/equipment-entries', entry);
   updateEquipmentEntry = (id: string, entry: EquipmentDetails) => this.http.put<EquipmentRecord>(`/api/equipment-entries/${id}`, entry);
   deleteEquipmentEntry = (id: string) => this.http.delete<void>(`/api/equipment-entries/${id}`);
@@ -182,6 +183,7 @@ export class Api {
     : this.http.post<Device>('/api/devices', pick(d, Object.keys(d)));
   deleteDevice = (id: string) => this.http.delete(`/api/devices/${id}`);
   devices = (clientId: string) => this.http.get<Device[]>('/api/devices', { params: { clientId } });
+  allDevices = () => this.http.get<Device[]>('/api/devices');
   deviceConfigFiles = (deviceId: string) => this.http.get<DeviceConfigFile[]>(`/api/devices/${deviceId}/config-files`);
   uploadDeviceConfigFile = (deviceId: string, file: File) => {
     const body = new FormData();

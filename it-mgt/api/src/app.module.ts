@@ -15,6 +15,8 @@ import {
 import { CryptoService } from './crypto.service';
 import { DeviceConfigFilesController } from './device-config-files.controller';
 import { EquipmentEntriesController } from './equipment-entries.controller';
+import { EquipmentReportService } from './equipment-report.service';
+import { ReportsController } from './reports.controller';
 import { ALL_ENTITIES, AppSetting, AuditLog, Client, Organization, User, uniqueSlug } from './entities';
 import { SshService } from './ssh.service';
 import { SnmpService } from './snmp.service';
@@ -43,10 +45,10 @@ import { SnmpService } from './snmp.service';
   controllers: [
     AuthController, UsersController, ClientsController, DevicesController, DeviceConfigFilesController, VmsController,
     CredentialsController, ExecController, AuditController, SearchController, SettingsController,
-    SnippetsController, OrganizationsController, PlatformController, SignupsController, AssetMovementsController, EquipmentEntriesController,
+    SnippetsController, OrganizationsController, PlatformController, SignupsController, AssetMovementsController, EquipmentEntriesController, ReportsController,
   ],
   providers: [
-    CryptoService, AuditService, SshService, SnmpService,
+    CryptoService, AuditService, SshService, SnmpService, EquipmentReportService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
