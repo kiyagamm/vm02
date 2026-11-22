@@ -218,6 +218,37 @@ export class EquipmentEntry {
   @CreateDateColumn() createdAt: Date;
 }
 
+export const PROJECT_STATUSES = ['planned', 'in-progress', 'on-hold', 'completed', 'cancelled'] as const;
+export type ProjectStatus = typeof PROJECT_STATUSES[number];
+
+@Entity('projects')
+export class Project {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Index() @Column({ type: 'uuid' }) organizationId: string;
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organizationId' }) organization: Organization;
+  @Column({ type: 'uuid', nullable: true }) clientId: string | null;
+  @ManyToOne(() => Client, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'clientId' }) client: Client | null;
+  @Column({ length: 200 }) name: string;
+  @Column({ length: 200 }) clientName: string;
+  @Column({ length: 200, default: '' }) lpoNumber: string;
+  @Column({ length: 200, default: '' }) referenceNumber: string;
+  @Column({ type: 'date' }) startDate: string;
+  @Column({ length: 200 }) location: string;
+  @Column({ length: 200 }) clientLead: string;
+  @Column({ length: 200 }) companyLead: string;
+  @Column({ type: 'text' }) teamDetails: string;
+  @Column({ type: 'text' }) clientContacts: string;
+  @Column({ type: 'varchar', length: 20 }) status: ProjectStatus;
+  @Column({ type: 'date', nullable: true }) completionDate: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true }) reportName: string | null;
+  @Column({ type: 'int', nullable: true }) reportSize: number | null;
+  @Column({ type: 'bytea', nullable: true, select: false }) reportContent: Buffer | null;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+}
+
 @Entity('signup_requests')
 export class SignupRequest {
   @PrimaryGeneratedColumn('uuid') id: string;
@@ -228,4 +259,4 @@ export class SignupRequest {
   @CreateDateColumn() createdAt: Date;
 }
 
-export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet, DeviceConfigFile, AssetMovement, EquipmentEntry];
+export const ALL_ENTITIES = [SignupRequest, Organization, User, Client, Device, Vm, Credential, AuditLog, AppSetting, ConfigSnippet, DeviceConfigFile, AssetMovement, EquipmentEntry, Project];

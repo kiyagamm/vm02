@@ -49,6 +49,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
         <button type="button" class="nav-toggle" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-controls="main-navigation">Menu</button>
         <div class="nav-links" id="main-navigation" [class.open]="menuOpen()">
           <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Clients</a>
+          <a routerLink="/projects" routerLinkActive="active">Projects</a>
           @if (auth.canAccessForms()) { <a routerLink="/forms" routerLinkActive="active">Forms</a> }
           <a routerLink="/reports" routerLinkActive="active">Reports</a>
           @if (auth.canWrite()) { <a routerLink="/snippets" routerLinkActive="active">Config snippets</a> }

@@ -4,7 +4,7 @@ import {
   ArrayMinSize, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min,
   MinLength, ValidateIf, ValidateNested,
 } from 'class-validator';
-import { CREDENTIAL_TYPES, DEVICE_TYPES, ROLES } from './entities';
+import { CREDENTIAL_TYPES, DEVICE_TYPES, PROJECT_STATUSES, ProjectStatus, ROLES } from './entities';
 
 export class LoginDto {
   @IsString() username: string;
@@ -94,6 +94,23 @@ export class EquipmentEntryDto {
   @IsString() @MaxLength(200) model: string;
   @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) dateReceived: string;
   @IsString() @MaxLength(2000) notes: string;
+}
+
+export class ProjectDto {
+  @IsString() @Length(1, 200) @Matches(/\S/) name: string;
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsUUID() clientId?: string | null;
+  @IsString() @Length(1, 200) @Matches(/\S/) clientName: string;
+  @IsOptional() @IsString() @MaxLength(200) lpoNumber?: string;
+  @IsOptional() @IsString() @MaxLength(200) referenceNumber?: string;
+  @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) startDate: string;
+  @IsString() @Length(1, 200) @Matches(/\S/) location: string;
+  @IsString() @Length(1, 200) @Matches(/\S/) clientLead: string;
+  @IsString() @Length(1, 200) @Matches(/\S/) companyLead: string;
+  @IsString() @Length(1, 5000) @Matches(/\S/) teamDetails: string;
+  @IsString() @Length(1, 5000) @Matches(/\S/) clientContacts: string;
+  @IsIn(PROJECT_STATUSES) status: ProjectStatus;
+  @ValidateIf((project: ProjectDto, value) => project.status === 'completed' || (value !== undefined && value !== null && value !== ''))
+  @IsDateString({ strict: true }) @Matches(/^\d{4}-\d{2}-\d{2}$/) completionDate?: string | null;
 }
 
 export class CreateClientDto {

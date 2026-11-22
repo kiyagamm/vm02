@@ -40,6 +40,15 @@ export interface EquipmentDetails {
 }
 export interface EquipmentRecord extends EquipmentDetails { id: string; createdAt: string }
 export interface EquipmentEntry extends EquipmentRecord { delivered: boolean; deliveredTo: string | null }
+export type ProjectStatus = 'planned' | 'in-progress' | 'on-hold' | 'completed' | 'cancelled';
+export interface ProjectDetails {
+  name: string; clientId: string | null; clientName: string; lpoNumber: string; referenceNumber: string;
+  startDate: string; location: string; clientLead: string; companyLead: string;
+  teamDetails: string; clientContacts: string; status: ProjectStatus; completionDate: string | null;
+}
+export interface Project extends ProjectDetails {
+  id: string; reportName: string | null; reportSize: number | null; createdAt: string; updatedAt: string;
+}
 export interface Credential { id: string; deviceId?: string; vmId?: string; username: string; password: string; type: string; notes?: string }
 export interface AuditEntry { id: string; username: string; action: string; entity: string; entityId?: string; details?: string; ip?: string; timestamp: string }
 export interface SearchHit { type: string; id: string; name: string; clientId: string; detail?: string }
@@ -182,6 +191,15 @@ export class Api {
   createEquipmentEntry = (entry: EquipmentDetails) => this.http.post<EquipmentRecord>('/api/equipment-entries', entry);
   updateEquipmentEntry = (id: string, entry: EquipmentDetails) => this.http.put<EquipmentRecord>(`/api/equipment-entries/${id}`, entry);
   deleteEquipmentEntry = (id: string) => this.http.delete<void>(`/api/equipment-entries/${id}`);
+  projects = () => this.http.get<Project[]>('/api/projects');
+  createProject = (project: ProjectDetails) => this.http.post<Project>('/api/projects', project);
+  updateProject = (id: string, project: ProjectDetails) => this.http.put<Project>(`/api/projects/${id}`, project);
+  uploadProjectReport = (id: string, file: File) => {
+    const body = new FormData();
+    body.append('file', file);
+    return this.http.post<{ name: string; size: number }>(`/api/projects/${id}/completion-report`, body);
+  };
+  downloadProjectReport = (id: string) => this.http.get(`/api/projects/${id}/completion-report`, { responseType: 'blob' });
   clients = () => this.http.get<Client[]>('/api/clients');
   client = (id: string) => this.http.get<Client>(`/api/clients/${id}`);
   saveClient = (c: Partial<Client>) => c.id ? this.http.put<Client>(`/api/clients/${c.id}`, pick(c, ['name', 'contact', 'notes'])) : this.http.post<Client>('/api/clients', pick(c, Object.keys(c)));

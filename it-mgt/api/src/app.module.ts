@@ -17,6 +17,7 @@ import { DeviceConfigFilesController } from './device-config-files.controller';
 import { EquipmentEntriesController } from './equipment-entries.controller';
 import { EquipmentReportService } from './equipment-report.service';
 import { ReportsController } from './reports.controller';
+import { ProjectsController } from './projects.controller';
 import { ALL_ENTITIES, AppSetting, AuditLog, Client, Organization, User, uniqueSlug } from './entities';
 import { SshService } from './ssh.service';
 import { SnmpService } from './snmp.service';
@@ -45,7 +46,7 @@ import { SnmpService } from './snmp.service';
   controllers: [
     AuthController, UsersController, ClientsController, DevicesController, DeviceConfigFilesController, VmsController,
     CredentialsController, ExecController, AuditController, SearchController, SettingsController,
-    SnippetsController, OrganizationsController, PlatformController, SignupsController, AssetMovementsController, EquipmentEntriesController, ReportsController,
+    SnippetsController, OrganizationsController, PlatformController, SignupsController, AssetMovementsController, EquipmentEntriesController, ReportsController, ProjectsController,
   ],
   providers: [
     CryptoService, AuditService, SshService, SnmpService, EquipmentReportService,
