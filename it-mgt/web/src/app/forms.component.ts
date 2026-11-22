@@ -105,6 +105,7 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
       }
       @if (selected()) {
         <p><button type="button" (click)="print()">Print / save as PDF</button></p>
+        <p class="muted">If your browser adds a date, title or URL, turn off headers and footers in the print settings.</p>
         @if (!brand.branding().logo) { <p class="muted">Add an organisation logo in Settings to include it on the form.</p> }
       }
     </div>
@@ -133,7 +134,7 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
         <p><b>From:</b> {{ movement.origin }}</p>
         <p><b>Destination:</b> {{ movement.destination }}</p>
         <p class="movement-notes"><b>Notes:</b> {{ movement.notes || '—' }}</p>
-        <div class="movement-signatures"><span>Released by: ____________________</span><span>Received by: ____________________</span></div>
+        <div class="movement-signatures"><span>Released by: ____________________</span><span class="no-print">Received by: ____________________</span></div>
       </article>
     }
   `,

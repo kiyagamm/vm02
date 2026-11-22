@@ -68,12 +68,19 @@ label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 14p
 .movement-assets-report tr { break-inside: avoid; }
 .movement-notes { white-space: pre-wrap; }
 .movement-signatures { display: flex; flex-wrap: wrap; gap: 32px; margin-top: 40px; }
+@page asset-movement {
+  margin: 12mm;
+  @top-left { content: ''; }
+  @bottom-left { content: ''; }
+}
 @media print {
   .no-print, nav.sidebar { display: none !important; }
   body { background: #fff; }
   .layout { display: block; }
   main { max-width: none; margin: 0; padding: 0; }
   .report { border: 0; padding: 0; margin: 0; }
+  .movement-report { page: asset-movement; }
+  .movement-header { flex-direction: column; gap: 8px; text-align: center; }
   pre { background: #fff; color: #000; border: 1px solid #ccc; }
 }
 .search { position: relative; }

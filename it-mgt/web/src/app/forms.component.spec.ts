@@ -72,6 +72,9 @@ describe('Asset movement forms', () => {
       ['Laptop', 'A-1', 'S-1', 'Model', 'Brand'],
       ['Monitor', 'A-3', 'S-3', 'M3', 'Display'],
     ]);
+    const signatures = fixture.nativeElement.querySelector('.movement-signatures') as HTMLElement;
+    expect(signatures.textContent).toContain('Released by:');
+    expect(signatures.querySelector('.no-print')?.textContent).toContain('Received by:');
     http.verify();
   });
 
