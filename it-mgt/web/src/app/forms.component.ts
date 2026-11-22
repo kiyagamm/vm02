@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
 import { Api, AssetMovement, AssetMovementDetails, Auth, BrandingService, EquipmentEntry, errMsg, MovementAsset } from './api';
 
 @Component({
@@ -9,7 +9,7 @@ import { Api, AssetMovement, AssetMovementDetails, Auth, BrandingService, Equipm
   imports: [RouterLink],
   template: `
     <h1>Forms</h1>
-    <p class="muted">Create and view forms for your organisation.</p>
+    <p class="muted">View forms and register equipment for your organisation.</p>
     <div class="card">
       <h2>Equipment entry</h2>
       <p>Register equipment and track delivery using movement forms.</p>
@@ -40,7 +40,7 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
       <p class="muted">Saved forms are available to viewers and admins in this organisation. Matching serial numbers update equipment delivery status.</p>
       @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
       @if (loadFailed()) { <button type="button" (click)="load()">Retry loading forms</button> }
-      @if (auth.canAccessForms()) {
+      @if (auth.isAdmin()) {
         <form class="card form" #movementForm="ngForm" (ngSubmit)="save(movementForm)">
           <h3>{{ editingId() ? 'Edit movement form' : 'New movement form' }}</h3>
           <h3>Assets</h3>
@@ -256,7 +256,7 @@ export class AssetMovementComponent implements OnInit {
     this.loading.set(true);
     this.loadFailed.set(false);
     this.error.set('');
-    forkJoin({ movements: this.api.assetMovements(), equipment: this.api.equipmentEntries() }).subscribe({
+    forkJoin({ movements: this.api.assetMovements(), equipment: this.auth.isAdmin() ? this.api.equipmentEntries() : of([] as EquipmentEntry[]) }).subscribe({
       next: ({ movements, equipment }) => { this.movements.set(movements); this.equipment.set(equipment); this.loading.set(false); },
       error: (e: unknown) => { this.error.set(errMsg(e)); this.loading.set(false); this.loadFailed.set(true); },
     });

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { Auth } from './api';
 import { DashboardComponent } from './dashboard.component';
 
 describe('DashboardComponent', () => {
@@ -10,6 +11,7 @@ describe('DashboardComponent', () => {
       imports: [DashboardComponent],
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
+    TestBed.inject(Auth).user.set({ id: 'a', username: 'admin', role: 'admin', active: true });
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
     TestBed.inject(HttpTestingController).expectOne('/api/clients').flush([
@@ -36,5 +38,25 @@ describe('DashboardComponent', () => {
     expect(cards[1].textContent).not.toContain('server');
     expect(cards[2].textContent).toContain('1 other device');
     expect(cards[2].textContent).not.toContain('VMs');
+  });
+
+  it('shows viewers only non-clickable client names and device counts', () => {
+    TestBed.configureTestingModule({
+      imports: [DashboardComponent],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    TestBed.inject(Auth).user.set({ id: 'v', username: 'viewer', role: 'viewer', active: true });
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+    TestBed.inject(HttpTestingController).expectOne('/api/clients').flush([{
+      id: 'one', name: 'Client', deviceCount: 2, contact: 'Private contact', notes: 'Private notes',
+      vmCount: 3, deviceTypeCounts: [{ type: 'server', count: 2 }],
+    }]);
+    fixture.detectChanges();
+    const card = fixture.nativeElement.querySelector('.grid .card') as HTMLElement;
+    expect(card.textContent).toContain('Client');
+    expect(card.textContent).toContain('2 devices');
+    expect(card.querySelector('a')).toBeNull();
+    for (const hidden of ['Private contact', 'Private notes', 'VMs', 'server']) expect(card.textContent).not.toContain(hidden);
   });
 });

@@ -62,7 +62,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
       </nav>
       <div class="content">
         <header class="topbar no-print">
-          <div class="search">
+          @if (auth.canWrite()) { <div class="search">
             @if (searchOpen()) {
               <input #si placeholder="Search clients, devices, VMs…" [ngModel]="q" (ngModelChange)="onQuery($event)" (keydown.escape)="closeSearch()" />
             }
@@ -74,7 +74,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
                 }
               </ul>
             }
-          </div>
+          </div> }
           <div class="usermenu" tabindex="0">
             <span class="whoami">{{ u.username }} · {{ u.organization?.name }} ▾</span>
             <div class="usermenu-pop">

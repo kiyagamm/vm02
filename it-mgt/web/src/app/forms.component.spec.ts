@@ -20,7 +20,7 @@ describe('Asset movement forms', () => {
       imports: [AssetMovementComponent, FormsPageComponent],
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
-    TestBed.inject(Auth).user.set({ id: 'u', username: 'viewer', role: 'viewer', active: true });
+    TestBed.inject(Auth).user.set({ id: 'u', username: 'admin', role: 'admin', active: true });
   });
 
   it('shows equipment entry before asset movement on the forms page', () => {
@@ -28,6 +28,26 @@ describe('Asset movement forms', () => {
     fixture.detectChanges();
     const headings = [...fixture.nativeElement.querySelectorAll('.card h2')] as HTMLElement[];
     expect(headings.map((heading) => heading.textContent?.trim())).toEqual(['Equipment entry', 'Asset movement']);
+  });
+
+  it('allows viewers to view and print saved movements without creating or editing', () => {
+    TestBed.inject(Auth).user.set({ id: 'u', username: 'viewer', role: 'viewer', active: true });
+    const fixture = TestBed.createComponent(AssetMovementComponent);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/asset-movements').flush([{ id: 'one', assetName: 'Laptop', assetTag: '', serialNumber: 'S-1',
+      moverName: 'Alex', moverContact: '', origin: 'Office', destination: 'Site', movementDate: '2026-01-01', notes: '', createdAt: '' }]);
+    http.expectNone('/api/equipment-entries');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('form')).toBeNull();
+    const buttons = fixture.nativeElement.querySelectorAll('tbody button') as NodeListOf<HTMLButtonElement>;
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].textContent?.trim()).toBe('View');
+    buttons[0].click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.movement-report').textContent).toContain('Laptop');
+    expect(fixture.nativeElement.textContent).toContain('Print / save as PDF');
+    http.verify();
   });
 
   it('filters outbound serials, autofills and saves snapshots for multiple items', async () => {

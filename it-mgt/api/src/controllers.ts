@@ -491,10 +491,13 @@ export class ClientsController {
     private audit: AuditService,
   ) {}
 
-  @Get() async list(@Org() orgId: string) {
+  @Get() async list(@Org() orgId: string, @CurrentUser() user: AuthUser) {
     const rows = await this.repo.createQueryBuilder('c')
       .where('c.organizationId = :orgId', { orgId })
       .loadRelationCountAndMap('c.deviceCount', 'c.devices').orderBy('c.name').getMany();
+    if (user.role === 'viewer') {
+      return rows.map(({ id, name, deviceCount }) => ({ id, name, deviceCount }));
+    }
     const counts = rows.length
       ? await this.devices.createQueryBuilder('d')
         .select('d.clientId', 'clientId')
@@ -525,7 +528,8 @@ export class ClientsController {
     }));
   }
 
-  @Get(':id') async one(@Param('id', uuid()) id: string, @Org() orgId: string) {
+  @Get(':id') @Roles('admin', 'engineer')
+  async one(@Param('id', uuid()) id: string, @Org() orgId: string) {
     const c = await this.repo.findOne({ where: { id, organizationId: orgId } });
     if (!c) throw new NotFoundException();
     const devices = await this.devices.find({ where: { clientId: id }, relations: { vms: true }, order: { name: 'ASC' } });
@@ -557,7 +561,7 @@ export class ClientsController {
   }
 }
 
-@Controller('devices')
+@Controller('devices') @Roles('admin', 'engineer')
 export class DevicesController {
   constructor(
     @InjectRepository(Device) private repo: Repository<Device>,
@@ -623,7 +627,7 @@ export class DevicesController {
   }
 }
 
-@Controller('vms')
+@Controller('vms') @Roles('admin', 'engineer')
 export class VmsController {
   constructor(
     @InjectRepository(Vm) private repo: Repository<Vm>,
@@ -669,7 +673,7 @@ const maskCred = (c: Credential) => {
   return { ...rest, password: '••••••••' };
 };
 
-@Controller('credentials')
+@Controller('credentials') @Roles('admin', 'engineer')
 export class CredentialsController {
   constructor(
     @InjectRepository(Credential) private repo: Repository<Credential>,
@@ -791,7 +795,7 @@ export class AuditController {
   }
 }
 
-@Controller('search')
+@Controller('search') @Roles('admin', 'engineer')
 export class SearchController {
   constructor(
     @InjectRepository(Client) private clients: Repository<Client>,

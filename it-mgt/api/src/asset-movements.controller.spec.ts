@@ -26,6 +26,7 @@ describe('AssetMovementsController', () => {
     expect(repo.create).toHaveBeenCalledWith({ ...details, organizationId: 'org-a' });
     expect(audit.log).toHaveBeenCalledWith(ctx, 'create', 'asset-movement', 'movement', 'Laptop');
     expect(Reflect.getMetadata('roles', AssetMovementsController)).toEqual(['admin', 'viewer']);
+    expect(Reflect.getMetadata('roles', controller.create)).toEqual(['admin']);
     expect(Reflect.getMetadata('roles', controller.update)).toEqual(['admin']);
     expect(Reflect.getMetadata('roles', controller.remove)).toEqual(['admin']);
   });

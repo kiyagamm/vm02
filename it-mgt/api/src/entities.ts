@@ -58,6 +58,7 @@ export class Client {
   @Column({ type: 'varchar', nullable: true }) contact: string | null;
   @Column({ type: 'text', nullable: true }) notes: string | null;
   @OneToMany(() => Device, (d) => d.client) devices: Device[];
+  deviceCount?: number;
   @CreateDateColumn() createdAt: Date;
 }
 

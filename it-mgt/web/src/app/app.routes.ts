@@ -17,7 +17,7 @@ export const routes: Routes = [
   { path: 'o/:slug', component: LoginComponent },
   { path: 'signup', loadComponent: () => import('./signup.component').then((m) => m.SignupComponent) },
   { path: '', loadComponent: () => import('./dashboard.component').then((m) => m.DashboardComponent), canActivate: [loggedIn] },
-  { path: 'clients/:id', loadComponent: () => import('./client-detail.component').then((m) => m.ClientDetailComponent), canActivate: [loggedIn] },
+  { path: 'clients/:id', loadComponent: () => import('./client-detail.component').then((m) => m.ClientDetailComponent), canActivate: [loggedIn, writerOnly] },
   { path: 'audit', loadComponent: () => import('./audit.component').then((m) => m.AuditComponent), canActivate: [loggedIn, adminOnly] },
   { path: 'users', loadComponent: () => import('./users.component').then((m) => m.UsersComponent), canActivate: [loggedIn, adminOnly] },
   { path: 'settings', loadComponent: () => import('./settings.component').then((m) => m.SettingsComponent), canActivate: [loggedIn] },

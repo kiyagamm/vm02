@@ -22,14 +22,16 @@ import { Api, Auth, Client, errMsg } from './api';
     <div class="grid">
       @for (c of clients(); track c.id) {
         <div class="card">
-          <h2><a [routerLink]="['/clients', c.id]">{{ c.name }}</a></h2>
-          <p class="muted">{{ c.contact }}</p>
+          <h2>@if (auth.canWrite()) { <a [routerLink]="['/clients', c.id]">{{ c.name }}</a> } @else { {{ c.name }} }</h2>
+          @if (auth.canWrite()) { <p class="muted">{{ c.contact }}</p> }
           <p>{{ c.deviceCount ?? 0 }} devices</p>
-          @for (item of c.deviceTypeCounts ?? []; track item.type) {
-            @if (item.count > 0) { <p>{{ item.count }} {{ deviceTypeLabel(item.type, item.count) }}</p> }
+          @if (auth.canWrite()) {
+            @for (item of c.deviceTypeCounts ?? []; track item.type) {
+              @if (item.count > 0) { <p>{{ item.count }} {{ deviceTypeLabel(item.type, item.count) }}</p> }
+            }
+            @if (c.vmCount) { <p>{{ c.vmCount }} VMs</p> }
+            <p class="muted">{{ c.notes }}</p>
           }
-          @if (c.vmCount) { <p>{{ c.vmCount }} VMs</p> }
-          <p class="muted">{{ c.notes }}</p>
           @if (auth.canWrite()) { <button class="sm" (click)="form.set({ ...c })">Edit</button> }
           @if (auth.isAdmin()) { <button class="sm danger" (click)="remove(c)">Delete</button> }
         </div>

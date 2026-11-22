@@ -19,7 +19,7 @@ export class AssetMovementsController {
     return this.repo.find({ where: { organizationId: orgId }, order: { createdAt: 'DESC' } });
   }
 
-  @Post()
+  @Post() @Roles('admin')
   async create(@Body() dto: CreateAssetMovementDto, @Org() orgId: string, @Ctx() ctx: ReqCtx) {
     const movement = await this.repo.save(this.repo.create({ ...dto, organizationId: orgId }));
     await this.audit.log(ctx, 'create', 'asset-movement', movement.id, movement.assetName);

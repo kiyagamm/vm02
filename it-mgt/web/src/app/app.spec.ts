@@ -73,6 +73,15 @@ describe('web', () => {
     expect(TestBed.inject(Router).url).toBe('/');
   });
 
+  it('blocks viewer access to client details and search', async () => {
+    TestBed.inject(Auth).user.set({ id: '1', username: 'viewer', role: 'viewer', active: true });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.topbar .search')).toBeNull();
+    await TestBed.inject(Router).navigateByUrl('/clients/one');
+    expect(TestBed.inject(Router).url).toBe('/');
+  });
+
   it('sends only allowed fields on update and nulls empty strings', () => {
     const api = TestBed.inject(Api);
     const http = TestBed.inject(HttpTestingController);

@@ -22,6 +22,8 @@ describe('Reports', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Delivered laptop');
     expect(fixture.nativeElement.textContent).not.toContain('In-store laptop');
+    expect(fixture.nativeElement.querySelector('.report.movement-report .movement-header')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('turn off headers and footers');
     fixture.componentInstance.type = 'store';
     fixture.componentInstance.generate();
     http.expectOne('/api/reports/equipment').flush(entries);
@@ -42,5 +44,17 @@ describe('Reports', () => {
     expect(fixture.nativeElement.textContent).toContain('Client');
     expect(fixture.nativeElement.textContent).toContain('Server');
     http.verify();
+  });
+
+  it('does not offer or generate client device reports for viewers', () => {
+    TestBed.inject(Auth).user.set({ id: 'v', username: 'viewer', role: 'viewer', active: true });
+    const fixture = TestBed.createComponent(ReportsComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('option[value="clients"]')).toBeNull();
+    fixture.componentInstance.type = 'clients';
+    fixture.componentInstance.generate();
+    expect(fixture.componentInstance.error()).toContain('not available');
+    TestBed.inject(HttpTestingController).expectNone('/api/devices');
+    TestBed.inject(HttpTestingController).expectNone('/api/clients');
   });
 });

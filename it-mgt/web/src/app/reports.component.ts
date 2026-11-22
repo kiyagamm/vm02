@@ -19,7 +19,7 @@ type Report =
         <select [(ngModel)]="type">
           <option value="delivered">Delivered equipment</option>
           <option value="store">Equipment in store</option>
-          <option value="clients">Client devices</option>
+          @if (auth.canWrite()) { <option value="clients">Client devices</option> }
         </select>
       </label>
       <p><button type="button" (click)="generate()" [disabled]="loading()">Generate report</button>
@@ -27,9 +27,10 @@ type Report =
       </p>
       @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
       @if (loading()) { <p>Generating report…</p> }
+      @if (report()) { <p class="muted">If your browser adds a date, title or URL, turn off headers and footers in the print settings.</p> }
     </div>
     @if (report(); as result) {
-      <article class="report">
+      <article class="report movement-report generated-report">
         <header class="movement-header">
           @if (brand.branding().logo; as logo) { <img [src]="logo" alt="Organisation logo" /> }
           <div><strong>{{ brand.branding().companyName || auth.user()?.organization?.name }}</strong>
@@ -74,6 +75,11 @@ export class ReportsComponent {
   generate() {
     if (this.loading()) return;
     const type = this.type;
+    if (type === 'clients' && !this.auth.canWrite()) {
+      this.report.set(null);
+      this.error.set('Client device reports are not available to viewers.');
+      return;
+    }
     this.error.set('');
     this.report.set(null);
     this.loading.set(true);
