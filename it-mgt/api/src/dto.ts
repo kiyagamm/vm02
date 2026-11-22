@@ -71,6 +71,7 @@ export class MovementAssetDto {
   @IsString() @MaxLength(200) serialNumber: string;
   @IsOptional() @IsString() @MaxLength(200) brand?: string | null;
   @IsOptional() @IsString() @MaxLength(200) model?: string | null;
+  @ValidateIf((_object, value) => value !== undefined) @IsBoolean() manualEntry?: boolean;
 }
 
 export class CreateAssetMovementDto extends MovementAssetDto {

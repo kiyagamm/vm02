@@ -28,7 +28,7 @@ const emptyMovement = (): AssetMovementDetails => ({
   assetName: '', assetTag: '', serialNumber: '', moverName: '', moverContact: '',
   origin: '', destination: '', movementDate: '', notes: '', direction: 'outbound',
 });
-const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNumber: '', brand: '', model: '' });
+const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNumber: '', brand: '', model: '', manualEntry: false });
 
 @Component({
   selector: 'app-asset-movement',
@@ -46,20 +46,35 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
           <h3>Assets</h3>
           <div class="movement-assets-scroll">
             <table class="movement-assets-entry">
-              <thead><tr><th>Asset *</th><th>Asset tag</th><th>Serial number *</th><th>Model</th><th>Brand</th><th></th></tr></thead>
+              <thead><tr><th>Asset *</th><th>Asset tag</th><th>Serial number</th><th>Model</th><th>Brand</th><th></th></tr></thead>
               <tbody>
                 @for (asset of assets; track $index; let i = $index) {
                   <tr>
-                    <td><select [attr.aria-label]="'Asset for item ' + (i + 1)" [name]="'assetName' + i" [ngModel]="asset.assetName" (ngModelChange)="changeName(asset, $event)" required>
-                      <option value="">Select equipment</option>
-                      @for (name of equipmentNames(asset); track name) { <option [value]="name">{{ name }}</option> }
-                    </select></td>
-                    <td>{{ asset.assetTag || '—' }}</td>
-                    <td><select [attr.aria-label]="'Serial number for item ' + (i + 1)" [name]="'serialNumber' + i" [ngModel]="asset.serialNumber" (ngModelChange)="selectSerial(asset, $event)" [required]="!isLegacyWithoutSerial(asset)">
-                      <option value="">{{ isLegacyWithoutSerial(asset) ? 'Not recorded (existing item)' : 'Select serial number' }}</option>
-                      @for (serial of serialOptions(asset); track serial) { <option [value]="serial">{{ serial }}</option> }
-                    </select></td>
-                    <td>{{ asset.model || '—' }}</td><td>{{ asset.brand || '—' }}</td>
+                    <td><select [attr.aria-label]="'Asset for item ' + (i + 1)" [name]="'assetChoice' + i" [ngModel]="asset.manualEntry ? null : asset.assetName" (ngModelChange)="chooseAsset(asset, $event)" [required]="!asset.manualEntry">
+                      <option [ngValue]="''">Select equipment</option>
+                      @for (name of equipmentNames(asset); track name) { <option [ngValue]="name">{{ name }}</option> }
+                      <option [ngValue]="null">Other (manual entry)</option>
+                    </select>
+                    @if (asset.manualEntry) {
+                      <input [attr.aria-label]="'Describe asset for item ' + (i + 1)" [name]="'assetDescription' + i" [(ngModel)]="asset.assetName" placeholder="Describe the asset" required maxlength="200" />
+                    }</td>
+                    <td>@if (asset.manualEntry) {
+                      <input [attr.aria-label]="'Asset tag for item ' + (i + 1)" [name]="'assetTag' + i" [(ngModel)]="asset.assetTag" maxlength="200" />
+                    } @else { {{ asset.assetTag || '—' }} }</td>
+                    <td>@if (asset.manualEntry) {
+                      <input [attr.aria-label]="'Serial number for item ' + (i + 1)" [name]="'serialNumber' + i" [(ngModel)]="asset.serialNumber" maxlength="200" placeholder="Optional" />
+                    } @else {
+                      <select [attr.aria-label]="'Serial number for item ' + (i + 1)" [name]="'serialNumber' + i" [ngModel]="asset.serialNumber" (ngModelChange)="selectSerial(asset, $event)" [required]="!isLegacyWithoutSerial(asset)">
+                        <option value="">{{ isLegacyWithoutSerial(asset) ? 'Not recorded (existing item)' : 'Select serial number (required)' }}</option>
+                        @for (serial of serialOptions(asset); track serial) { <option [value]="serial">{{ serial }}</option> }
+                      </select>
+                    }</td>
+                    <td>@if (asset.manualEntry) {
+                      <input [attr.aria-label]="'Model for item ' + (i + 1)" [name]="'model' + i" [(ngModel)]="asset.model" maxlength="200" />
+                    } @else { {{ asset.model || '—' }} }</td>
+                    <td>@if (asset.manualEntry) {
+                      <input [attr.aria-label]="'Brand for item ' + (i + 1)" [name]="'brand' + i" [(ngModel)]="asset.brand" maxlength="200" />
+                    } @else { {{ asset.brand || '—' }} }</td>
                     <td>@if (assets.length > 1) { <button type="button" class="sm" (click)="removeAsset(i)">Remove item {{ i + 1 }}</button> }</td>
                   </tr>
                 }
@@ -157,21 +172,21 @@ export class AssetMovementComponent implements OnInit {
   private originalAssets: MovementAsset[] = [];
 
   isLegacyWithoutSerial(asset: MovementAsset) {
-    return !!this.editingId() && !asset.serialNumber && this.originalAssets.some((item) => !item.serialNumber && item.assetName === asset.assetName);
+    return !!this.editingId() && !asset.serialNumber && this.originalAssets.some((item) => !item.manualEntry && !item.serialNumber && item.assetName === asset.assetName);
   }
   private eligible(entry: EquipmentEntry) {
     return this.draft.direction === 'inbound' || !entry.delivered
-      || this.originalAssets.some((asset) => asset.serialNumber === entry.serialNumber);
+      || this.originalAssets.some((asset) => !asset.manualEntry && asset.serialNumber === entry.serialNumber);
   }
   equipmentNames(asset: MovementAsset) {
     return [...new Set([...this.equipment().map((entry) => entry.name),
-      ...(this.originalAssets.some((item) => item.assetName === asset.assetName) ? [asset.assetName] : [])])].sort();
+      ...(this.originalAssets.some((item) => !item.manualEntry && item.assetName === asset.assetName) ? [asset.assetName] : [])])].sort();
   }
   serialOptions(asset: MovementAsset) {
     const serials = this.equipment().filter((entry) => this.eligible(entry) && entry.name === asset.assetName
       && !this.assets.some((other) => other !== asset && other.serialNumber === entry.serialNumber)).map((entry) => entry.serialNumber);
     for (const original of this.originalAssets) {
-      if (original.serialNumber && original.assetName === asset.assetName && !serials.includes(original.serialNumber)
+      if (!original.manualEntry && original.serialNumber && original.assetName === asset.assetName && !serials.includes(original.serialNumber)
         && !this.assets.some((other) => other !== asset && other.serialNumber === original.serialNumber)) serials.push(original.serialNumber);
     }
     return serials.sort();
@@ -179,16 +194,20 @@ export class AssetMovementComponent implements OnInit {
   changeName(asset: MovementAsset, name: string) {
     Object.assign(asset, emptyAsset(), { assetName: name });
   }
+  chooseAsset(asset: MovementAsset, name: string | null) {
+    if (name === null) Object.assign(asset, emptyAsset(), { manualEntry: true });
+    else this.changeName(asset, name);
+  }
   selectSerial(asset: MovementAsset, serial: string) {
     const entry = this.equipment().find((item) => item.serialNumber === serial && item.name === asset.assetName && this.eligible(item));
-    const original = this.originalAssets.find((item) => item.serialNumber === serial && item.assetName === asset.assetName);
+    const original = this.originalAssets.find((item) => !item.manualEntry && item.serialNumber === serial && item.assetName === asset.assetName);
     if (entry) Object.assign(asset, { serialNumber: entry.serialNumber, assetTag: entry.assetTag, brand: entry.brand, model: entry.model });
     else if (original) Object.assign(asset, original);
     else Object.assign(asset, { serialNumber: '', assetTag: '', brand: '', model: '' });
   }
   directionChanged() {
     for (const asset of this.assets) {
-      if (asset.serialNumber && !this.serialOptions(asset).includes(asset.serialNumber)) this.changeName(asset, '');
+      if (!asset.manualEntry && asset.serialNumber && !this.serialOptions(asset).includes(asset.serialNumber)) this.changeName(asset, '');
     }
   }
 
@@ -204,7 +223,7 @@ export class AssetMovementComponent implements OnInit {
     this.draft = { assetName: movement.assetName, assetTag: movement.assetTag, serialNumber: movement.serialNumber,
       direction: movement.direction ?? 'outbound', moverName: movement.moverName, moverContact: movement.moverContact,
       origin: movement.origin, destination: movement.destination, movementDate: movement.movementDate, notes: movement.notes };
-    this.assets = this.movementAssets(movement).map((asset) => ({ assetName: asset.assetName, assetTag: asset.assetTag, serialNumber: asset.serialNumber, brand: asset.brand, model: asset.model }));
+    this.assets = this.movementAssets(movement).map((asset) => ({ assetName: asset.assetName, assetTag: asset.assetTag, serialNumber: asset.serialNumber, brand: asset.brand, model: asset.model, manualEntry: asset.manualEntry ?? false }));
     this.originalAssets = this.assets.map((asset) => ({ ...asset }));
     this.error.set('');
   }
@@ -213,7 +232,7 @@ export class AssetMovementComponent implements OnInit {
     this.originalAssets = [];
     this.draft = emptyMovement();
     this.assets = [emptyAsset()];
-    form.resetForm({ ...this.draft, assetName0: '', assetTag0: '', serialNumber0: '' });
+    form.resetForm({ ...this.draft, assetChoice0: '', serialNumber0: '' });
   }
   remove(movement: AssetMovement) {
     if (!confirm('Delete this movement form? Equipment delivery status will be recalculated.')) return;
@@ -244,16 +263,19 @@ export class AssetMovementComponent implements OnInit {
 
   save(form: NgForm) {
     if (form.invalid || this.saving() || this.loading() || this.loadFailed()) return;
-    const assets = this.assets.map((asset) => ({ ...asset, assetName: asset.assetName.trim() }));
+    const assets = this.assets.map((asset) => ({ ...asset, assetName: asset.assetName.trim(), serialNumber: asset.serialNumber.trim() }));
     const draft: AssetMovementDetails = {
       ...this.draft,
       ...assets[0], additionalAssets: assets.slice(1), moverName: this.draft.moverName.trim(),
       origin: this.draft.origin.trim(), destination: this.draft.destination.trim(),
     };
-    const serials = assets.map((asset) => asset.serialNumber).filter(Boolean);
-    if (assets.some((asset, index) => !asset.assetName || (!asset.serialNumber && !this.isLegacyWithoutSerial(asset))
-      || (!!asset.serialNumber && !this.serialOptions(this.assets[index]).includes(asset.serialNumber)))
-      || new Set(serials).size !== serials.length
+    const serials = assets.map((asset) => asset.serialNumber.toUpperCase()).filter(Boolean);
+    if (new Set(serials).size !== serials.length) {
+      this.error.set('Each serial number may only be used once on a form.');
+      return;
+    }
+    if (assets.some((asset, index) => !asset.assetName || (!asset.manualEntry && !asset.serialNumber && !this.isLegacyWithoutSerial(asset))
+      || (!asset.manualEntry && !!asset.serialNumber && !this.serialOptions(this.assets[index]).includes(asset.serialNumber)))
       || !draft.moverName || !draft.origin || !draft.destination) {
       this.error.set('Complete all required fields.');
       return;

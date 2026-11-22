@@ -77,4 +77,15 @@ describe('AssetMovementsController', () => {
     await expect(pipe.transform({ ...details, additionalAssets: 'invalid' }, metadata)).rejects.toThrow();
     await expect(pipe.transform({ ...details, additionalAssets: [additionalAssets] }, metadata)).rejects.toThrow();
   });
+
+  it('accepts manual asset details with optional serials and validates their entry mode', async () => {
+    const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+    const metadata = { type: 'body' as const, metatype: CreateAssetMovementDto };
+    const manual = { ...details, assetName: 'Projector', serialNumber: '', manualEntry: true,
+      additionalAssets: [{ assetName: 'Cable', assetTag: '', serialNumber: '', manualEntry: true }] };
+    const dto = await pipe.transform(manual, metadata);
+    expect(dto).toMatchObject(manual);
+    await expect(pipe.transform({ ...manual, manualEntry: null }, metadata)).rejects.toThrow();
+    await expect(pipe.transform({ ...manual, additionalAssets: [{ ...manual.additionalAssets[0], manualEntry: 'true' }] }, metadata)).rejects.toThrow();
+  });
 });

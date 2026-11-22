@@ -62,7 +62,8 @@ label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 14p
 .movement-assets-scroll { overflow-x: auto; }
 .movement-assets-entry { min-width: 720px; }
 .movement-assets-entry th, .movement-assets-entry td { border: 1px solid #b8bfcc; }
-.movement-assets-entry select { width: 100%; }
+.movement-assets-entry select, .movement-assets-entry input { width: 100%; box-sizing: border-box; }
+.movement-assets-entry input { margin-top: 4px; }
 .movement-assets-report { table-layout: fixed; }
 .movement-assets-report th, .movement-assets-report td { border: 1px solid #b8bfcc; overflow-wrap: anywhere; }
 .movement-assets-report tr { break-inside: avoid; }

@@ -29,7 +29,7 @@ export interface Vm {
   diskGb?: number; status: string; purpose?: string; metadata: Record<string, unknown>;
 }
 export interface DeviceConfigFile { id: string; deviceId: string; name: string; size: number; createdAt: string }
-export interface MovementAsset { assetName: string; assetTag: string; serialNumber: string; brand?: string | null; model?: string | null }
+export interface MovementAsset { assetName: string; assetTag: string; serialNumber: string; brand?: string | null; model?: string | null; manualEntry?: boolean }
 export interface AssetMovementDetails extends MovementAsset {
   additionalAssets?: MovementAsset[] | null; direction?: 'inbound' | 'outbound'; moverName: string; moverContact: string;
   origin: string; destination: string; movementDate: string; notes: string;
