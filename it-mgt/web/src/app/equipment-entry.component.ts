@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { Component, computed, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Api, Auth, BrandingService, EquipmentDetails, EquipmentEntry, errMsg } from './api';
@@ -36,22 +36,27 @@ const emptyEntry = (): EquipmentDetails => ({
       @if (loading()) { <p>Loading entries…</p> }
       @else if (!entries().length && !error()) { <p class="muted">No equipment entries have been saved yet.</p> }
       @else if (entries().length) {
-        <table>
-          <thead><tr><th>Equipment</th><th>Serial number</th><th>Status</th><th>Delivered to</th><th></th></tr></thead>
-          <tbody>
-            @for (entry of entries(); track entry.id) {
-              <tr><td>{{ entry.name }}</td><td>{{ entry.serialNumber }}</td>
-                <td>{{ entry.delivered ? 'Delivered' : 'Not delivered' }}</td><td>{{ entry.deliveredTo || '—' }}</td>
-                <td><button type="button" class="sm" (click)="selected.set(entry)">View</button>
-                  @if (auth.isAdmin()) {
-                    <button type="button" class="sm" (click)="edit(entry)" [disabled]="saving()">Edit</button>
-                    <button type="button" class="sm danger" (click)="remove(entry)" [disabled]="saving()">Delete</button>
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
+        @for (group of groupedEntries(); track group.key) {
+          <section class="equipment-group">
+            <h3>{{ group.name }}</h3>
+            <table>
+              <thead><tr><th>Equipment</th><th>Serial number</th><th>Status</th><th>Delivered to</th><th></th></tr></thead>
+              <tbody>
+                @for (entry of group.entries; track entry.id) {
+                  <tr><td>{{ entry.name }}</td><td>{{ entry.serialNumber }}</td>
+                    <td>{{ entry.delivered ? 'Delivered' : 'Not delivered' }}</td><td>{{ entry.deliveredTo || '—' }}</td>
+                    <td><button type="button" class="sm" (click)="selected.set(entry)">View</button>
+                      @if (auth.isAdmin()) {
+                        <button type="button" class="sm" (click)="edit(entry)" [disabled]="saving()">Edit</button>
+                        <button type="button" class="sm danger" (click)="remove(entry)" [disabled]="saving()">Delete</button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </section>
+        }
       }
       @if (selected()) {
         <p><button type="button" (click)="print()">Print / save as PDF</button></p>
@@ -83,6 +88,17 @@ export class EquipmentEntryComponent implements OnInit {
   readonly auth = inject(Auth);
   readonly brand = inject(BrandingService);
   entries = signal<EquipmentEntry[]>([]);
+  groupedEntries = computed(() => {
+    const groups = new Map<string, { key: string; name: string; entries: EquipmentEntry[] }>();
+    for (const entry of this.entries()) {
+      const name = entry.name.trim();
+      const key = name.toLowerCase();
+      const group = groups.get(key);
+      if (group) group.entries.push(entry);
+      else groups.set(key, { key, name, entries: [entry] });
+    }
+    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+  });
   selected = signal<EquipmentEntry | null>(null);
   editingId = signal<string | null>(null);
   loading = signal(true);

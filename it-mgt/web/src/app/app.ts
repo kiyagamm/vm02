@@ -30,7 +30,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
             <header class="topbar no-print">
               <span class="whoami"><b>Platform console</b></span>
               <div class="usermenu" tabindex="0">
-                <span class="whoami">{{ u.username }} (super admin) ▾</span>
+                <span class="whoami">{{ u.username }} ▾</span>
                 <div class="usermenu-pop">
                   <button type="button" (click)="auth.logout()">Logout</button>
                 </div>
@@ -76,7 +76,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
             }
           </div>
           <div class="usermenu" tabindex="0">
-            <span class="whoami">{{ u.username }} ({{ u.role }}) · {{ u.organization?.name }} ▾</span>
+            <span class="whoami">{{ u.username }} · {{ u.organization?.name }} ▾</span>
             <div class="usermenu-pop">
               @for (o of otherOrgs(); track o.id) {
                 <button type="button" (click)="switchOrg(o.id)">Switch to {{ o.name }}</button>

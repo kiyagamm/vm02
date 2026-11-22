@@ -71,4 +71,29 @@ describe('Equipment entry forms', () => {
     confirmSpy.mockRestore();
     http.verify();
   });
+
+  it('groups entries by equipment name and updates groups when entries change', () => {
+    TestBed.inject(Auth).user.set({ id: 'u', username: 'admin', role: 'admin', active: true });
+    const fixture = TestBed.createComponent(EquipmentEntryComponent);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    const server = { ...entry, id: 'server', name: 'Server', serialNumber: 'S-2' };
+    const switchEntry = { ...entry, id: 'switch', name: 'Switch', serialNumber: 'S-3', delivered: false, deliveredTo: null };
+    const anotherServer = { ...entry, id: 'server-2', name: ' server ', serialNumber: 'S-4' };
+    http.expectOne('/api/equipment-entries').flush([switchEntry, server, anotherServer]);
+    fixture.detectChanges();
+    const groups = Array.from(fixture.nativeElement.querySelectorAll('.equipment-group')) as HTMLElement[];
+    expect(groups.map((group) => group.querySelector('h3')?.textContent?.trim())).toEqual(['Server', 'Switch']);
+    expect(groups[0].querySelectorAll('tbody tr')).toHaveLength(2);
+    expect(groups[0].textContent).toContain('S-2');
+    expect(groups[0].textContent).toContain('S-4');
+    expect(groups[1].textContent).toContain('Not delivered');
+    expect(groups[1].querySelectorAll('button')).toHaveLength(3);
+
+    fixture.componentInstance.entries.set([{ ...server, name: 'Storage' }, switchEntry]);
+    fixture.detectChanges();
+    const updatedGroups = Array.from(fixture.nativeElement.querySelectorAll('.equipment-group h3')) as HTMLElement[];
+    expect(updatedGroups.map((heading) => heading.textContent?.trim())).toEqual(['Storage', 'Switch']);
+    http.verify();
+  });
 });

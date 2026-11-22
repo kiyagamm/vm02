@@ -35,6 +35,20 @@ describe('web', () => {
     expect(auth.canAccessForms()).toBe(true);
   });
 
+  it('shows the username without the current role in organisation and platform menus', () => {
+    const auth = TestBed.inject(Auth);
+    auth.user.set({ id: '1', username: 'member', role: 'admin', active: true,
+      organization: { id: 'org', name: 'Example' } });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.usermenu .whoami').textContent.trim()).toBe('member · Example ▾');
+    expect(fixture.nativeElement.textContent).toContain('Audit log');
+
+    auth.user.set({ id: '1', username: 'member', role: 'admin', active: true, platform: true });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.usermenu .whoami').textContent.trim()).toBe('member ▾');
+  });
+
   it('opens the mobile menu and closes it after navigating to a lazy-loaded form', async () => {
     TestBed.inject(Auth).user.set({ id: '1', username: 'viewer', role: 'viewer', active: true });
     const fixture = TestBed.createComponent(App);
