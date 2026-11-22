@@ -15,6 +15,7 @@ const emptyProject = (): ProjectDetails => ({
     <div class="row"><h1>Projects</h1>
       @if (auth.canWrite()) { <button type="button" (click)="newProject()" [disabled]="saving() || loading()">+ Add project</button> }
     </div>
+    <p class="muted">Select a project to view its details.</p>
     @if (error()) { <div class="error" role="alert">{{ error() }}</div> }
     @if (loading()) { <p>Loading projects…</p> }
     @if (loadFailed()) { <button type="button" (click)="load()">Retry loading projects</button> }
@@ -51,37 +52,40 @@ const emptyProject = (): ProjectDetails => ({
     }
     @for (project of projects(); track project.id) {
       <section class="card">
-        <div class="row"><h2>{{ project.name }}</h2><span class="tag">{{ statusLabel(project.status) }}</span>
-          <span class="spacer"></span>
-          @if (auth.canWrite()) { <button type="button" class="sm" (click)="edit(project)" [disabled]="saving()">Edit</button> }
-        </div>
-        <p><b>Client:</b> {{ project.clientName }}</p>
-        <p><b>LPO number:</b> {{ project.lpoNumber || '—' }} · <b>Project reference:</b> {{ project.referenceNumber || '—' }}</p>
-        <p><b>Start date:</b> {{ project.startDate }} · <b>Location:</b> {{ project.location }}</p>
-        @if (project.status === 'completed' || project.completionDate) {
-          <p><b>Completion date:</b> {{ project.completionDate || '—' }}</p>
-        }
-        <p><b>Client project lead:</b> {{ project.clientLead }}</p>
-        <p><b>Executing company project lead:</b> {{ project.companyLead }}</p>
-        <p class="movement-notes"><b>Project team:</b> {{ project.teamDetails }}</p>
-        <p class="movement-notes"><b>Client contacts:</b> {{ project.clientContacts }}</p>
-        <h3>Completion report</h3>
-        @if (project.reportName) {
-          <p>{{ project.reportName }} ({{ project.reportSize }} bytes)
-            <button type="button" class="sm" (click)="download(project)">Download</button></p>
-        } @else { <p class="muted">No completion report uploaded.</p> }
-        @if (auth.canWrite() && project.status === 'completed') {
-          <label>Upload completion report (max 25 MB)
-            <input #reportFile type="file" (change)="selectReport(project.id, $event)" [disabled]="saving()" />
-          </label>
-          @if (project.reportName) { <p class="muted">Uploading a new report replaces the current report.</p> }
-          <p><button type="button" (click)="upload(project, reportFile)" [disabled]="saving() || selectedFile()?.projectId !== project.id">Upload report</button></p>
-        }
+        <details>
+          <summary class="project-summary">
+            <strong>{{ project.name }}</strong> · Client: {{ project.clientName }}
+            <span class="tag">{{ statusLabel(project.status) }}</span>
+          </summary>
+          @if (auth.canWrite()) { <p><button type="button" class="sm" (click)="edit(project)" [disabled]="saving()">Edit</button></p> }
+          <p><b>LPO number:</b> {{ project.lpoNumber || '—' }} · <b>Project reference:</b> {{ project.referenceNumber || '—' }}</p>
+          <p><b>Start date:</b> {{ project.startDate }} · <b>Location:</b> {{ project.location }}</p>
+          @if (project.status === 'completed' || project.completionDate) {
+            <p><b>Completion date:</b> {{ project.completionDate || '—' }}</p>
+          }
+          <p><b>Client project lead:</b> {{ project.clientLead }}</p>
+          <p><b>Executing company project lead:</b> {{ project.companyLead }}</p>
+          <p class="movement-notes"><b>Project team:</b> {{ project.teamDetails }}</p>
+          <p class="movement-notes"><b>Client contacts:</b> {{ project.clientContacts }}</p>
+          <h3>Completion report</h3>
+          @if (project.reportName) {
+            <p>{{ project.reportName }} ({{ project.reportSize }} bytes)
+              <button type="button" class="sm" (click)="download(project)">Download</button></p>
+          } @else { <p class="muted">No completion report uploaded.</p> }
+          @if (auth.canWrite() && project.status === 'completed') {
+            <label>Upload completion report (max 25 MB)
+              <input #reportFile type="file" (change)="selectReport(project.id, $event)" [disabled]="saving()" />
+            </label>
+            @if (project.reportName) { <p class="muted">Uploading a new report replaces the current report.</p> }
+            <p><button type="button" (click)="upload(project, reportFile)" [disabled]="saving() || selectedFile()?.projectId !== project.id">Upload report</button></p>
+          }
+        </details>
       </section>
     } @empty {
       @if (!loading() && !loadFailed()) { <p class="muted">No projects yet.</p> }
     }
   `,
+  styles: [`.project-summary { cursor: pointer; line-height: 1.8; }`],
 })
 export class ProjectsComponent implements OnInit {
   private api = inject(Api);

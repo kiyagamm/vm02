@@ -22,6 +22,39 @@ describe('Projects', () => {
     });
   });
 
+  it('lists project and client names and opens the selected project details', () => {
+    TestBed.inject(Auth).user.set({ id: 'u', username: 'admin', role: 'admin', active: true });
+    const fixture = TestBed.createComponent(ProjectsComponent);
+    fixture.detectChanges();
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('/api/projects').flush([
+      project,
+      { ...project, id: 'two', name: 'Network upgrade', clientName: 'Another client', location: 'Remote site' },
+    ]);
+    http.expectOne('/api/clients').flush([]);
+    fixture.detectChanges();
+    const entries = fixture.nativeElement.querySelectorAll('section.card details') as NodeListOf<HTMLDetailsElement>;
+    expect(entries.length).toBe(2);
+    expect(entries[0].querySelector('summary')?.textContent).toContain('Deployment');
+    expect(entries[0].querySelector('summary')?.textContent).toContain('New client');
+    expect(entries[1].querySelector('summary')?.textContent).toContain('Network upgrade');
+    expect(entries[1].querySelector('summary')?.textContent).toContain('Another client');
+    expect(entries[0].open).toBe(false);
+    expect(entries[1].open).toBe(false);
+    entries[1].querySelector('summary')!.click();
+    fixture.detectChanges();
+    expect(entries[1].open).toBe(true);
+    expect(entries[0].open).toBe(false);
+    expect(entries[1].textContent).toContain('Remote site');
+    const edit = [...entries[1].querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Edit')!;
+    edit.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft.name).toBe('Network upgrade');
+    entries[1].querySelector('summary')!.click();
+    expect(entries[1].open).toBe(false);
+    http.verify();
+  });
+
   it('creates projects with manual or registered clients and updates existing projects', async () => {
     TestBed.inject(Auth).user.set({ id: 'u', username: 'admin', role: 'admin', active: true });
     const fixture = TestBed.createComponent(ProjectsComponent);
@@ -116,6 +149,8 @@ describe('Projects', () => {
     http.expectOne('/api/clients').flush([]);
     fixture.detectChanges();
     const sections = fixture.nativeElement.querySelectorAll('section.card') as NodeListOf<HTMLElement>;
+    sections[1].querySelector('summary')!.click();
+    expect(sections[1].querySelector('details')?.open).toBe(true);
     expect(sections[0].querySelector('input[type=file]')).toBeNull();
     expect(sections[1].textContent).toContain('replaces the current report');
     const input = sections[1].querySelector('input[type=file]') as HTMLInputElement;
@@ -143,6 +178,10 @@ describe('Projects', () => {
     http.expectNone('/api/clients');
     fixture.detectChanges();
     const page = fixture.nativeElement as HTMLElement;
+    const projectDetails = page.querySelector('details')!;
+    expect(projectDetails.open).toBe(false);
+    projectDetails.querySelector('summary')!.click();
+    expect(projectDetails.open).toBe(true);
     expect(page.textContent).toContain('Alex - engineer');
     expect(page.textContent).toContain('Contact - 123');
     expect(page.textContent).not.toContain('Edit');
