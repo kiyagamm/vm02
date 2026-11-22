@@ -10,6 +10,7 @@ const MAX_LOGO_BYTES = 500 * 1024;
   imports: [RouterLink],
   template: `
     <h1>Platform overview</h1>
+    <p class="page-intro">A snapshot of activity across your organisations.</p>
     @if (error()) { <div class="error">{{ error() }}</div> }
     @if (o(); as s) {
       <div class="stats">

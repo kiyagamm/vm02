@@ -10,6 +10,7 @@ import { Api, Auth, Client, errMsg } from './api';
     <div class="row"><h1>Clients</h1>
       @if (auth.canWrite()) { <button (click)="form.set({ name: '' })">+ Add client</button> }
     </div>
+    <p class="page-intro">Your organisation's clients and their equipment, all in one place.</p>
     @if (error()) { <div class="error">{{ error() }}</div> }
     @if (form(); as f) {
       <form class="card form" (ngSubmit)="save()">
@@ -24,7 +25,7 @@ import { Api, Auth, Client, errMsg } from './api';
         <div class="card">
           <h2>@if (auth.canWrite()) { <a [routerLink]="['/clients', c.id]">{{ c.name }}</a> } @else { {{ c.name }} }</h2>
           @if (auth.canWrite()) { <p class="muted">{{ c.contact }}</p> }
-          <p>{{ c.deviceCount ?? 0 }} devices</p>
+          <p><span class="metric-pill">{{ c.deviceCount ?? 0 }} devices</span></p>
           @if (auth.canWrite()) {
             @for (item of c.deviceTypeCounts ?? []; track item.type) {
               @if (item.count > 0) { <p>{{ item.count }} {{ deviceTypeLabel(item.type, item.count) }}</p> }

@@ -8,6 +8,7 @@ import { Api, Auth, BrandingService, OrgPublic, OrgRef, PlatformService, errMsg 
   imports: [FormsModule, RouterLink],
   template: `
     <form class="card form login" (ngSubmit)="submit()">
+      <p class="login-kicker">Your workspace</p>
       @if (org(); as o) {
         @if (o.logo) { <img class="login-logo" [src]="o.logo" alt="Logo" /> }
         <h1>{{ o.name }}</h1>
@@ -19,6 +20,7 @@ import { Api, Auth, BrandingService, OrgPublic, OrgRef, PlatformService, errMsg 
         @if (plat.settings().logo; as logo) { <img class="login-logo" [src]="logo" alt="Logo" /> }
         <h1>{{ plat.settings().name }}</h1>
         @if (plat.settings().tagline; as t) { <p class="muted tagline">{{ t }}</p> }
+        @else { <p class="muted tagline">Manage your workspace in one place.</p> }
       }
       @if (error()) { <div class="error">{{ error() }}</div> }
       <label>Username <input name="u" [(ngModel)]="username" autocomplete="username" required /></label>

@@ -8,6 +8,7 @@ import { Api, PlatformService, errMsg } from './api';
   imports: [FormsModule, RouterLink],
   template: `
     <form class="card form login" (ngSubmit)="submit()">
+      <p class="login-kicker">Get started</p>
       @if (plat.settings().logo; as logo) { <img class="login-logo" [src]="logo" alt="Logo" /> }
       <h1>{{ plat.settings().name }}</h1>
       <p class="muted tagline">Create an account</p>

@@ -17,6 +17,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
               @if (plat.settings().logo; as logo) { <img class="brand-logo" [src]="logo" alt="" /> }
               {{ plat.settings().name }}
             </a>
+            <span class="nav-caption">Platform workspace</span>
             <button type="button" class="nav-toggle" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-controls="main-navigation">Menu</button>
             <div class="nav-links" id="main-navigation" [class.open]="menuOpen()">
               <a routerLink="/platform" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Overview</a>
@@ -30,6 +31,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
             <header class="topbar no-print">
               <span class="whoami"><b>Platform console</b></span>
               <div class="usermenu" tabindex="0">
+                <span class="user-avatar" aria-hidden="true">{{ u.username.charAt(0).toUpperCase() }}</span>
                 <span class="whoami">{{ u.username }} ▾</span>
                 <div class="usermenu-pop">
                   <button type="button" (click)="auth.logout()">Logout</button>
@@ -46,6 +48,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
           @if (brand.branding().logo; as logo) { <img class="brand-logo" [src]="logo" alt="" /> }
           {{ brand.branding().companyName || 'IT Management' }}
         </a>
+        <span class="nav-caption">Organisation workspace</span>
         <button type="button" class="nav-toggle" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-controls="main-navigation">Menu</button>
         <div class="nav-links" id="main-navigation" [class.open]="menuOpen()">
           <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Clients</a>
@@ -67,7 +70,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
             @if (searchOpen()) {
               <input #si placeholder="Search clients, devices, VMs…" [ngModel]="q" (ngModelChange)="onQuery($event)" (keydown.escape)="closeSearch()" />
             }
-            <button class="icon-btn" type="button" title="Search" (click)="toggleSearch()">🔍</button>
+            <button class="icon-btn" type="button" title="Search" aria-label="Search" (click)="toggleSearch()">🔍</button>
             @if (searchOpen() && hits().length) {
               <ul>
                 @for (h of hits(); track h.type + h.id) {
@@ -77,6 +80,7 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
             }
           </div> }
           <div class="usermenu" tabindex="0">
+            <span class="user-avatar" aria-hidden="true">{{ u.username.charAt(0).toUpperCase() }}</span>
             <span class="whoami">{{ u.username }} · {{ u.organization?.name }} ▾</span>
             <div class="usermenu-pop">
               @for (o of otherOrgs(); track o.id) {

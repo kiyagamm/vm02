@@ -42,11 +42,14 @@ describe('web', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.usermenu .whoami').textContent.trim()).toBe('member · Example ▾');
+    expect(fixture.nativeElement.querySelector('.user-avatar').textContent.trim()).toBe('M');
+    expect(fixture.nativeElement.querySelector('.user-avatar').getAttribute('aria-hidden')).toBe('true');
     expect(fixture.nativeElement.textContent).toContain('Audit log');
 
     auth.user.set({ id: '1', username: 'member', role: 'admin', active: true, platform: true });
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.usermenu .whoami').textContent.trim()).toBe('member ▾');
+    expect(fixture.nativeElement.querySelector('.user-avatar').getAttribute('aria-hidden')).toBe('true');
   });
 
   it('keeps browser theme preferences separate for each user and from the platform default', () => {
