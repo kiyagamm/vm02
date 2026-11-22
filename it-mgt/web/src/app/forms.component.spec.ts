@@ -5,7 +5,7 @@ import { NgForm } from '@angular/forms';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { Auth, EquipmentEntry } from './api';
-import { AssetMovementComponent } from './forms.component';
+import { AssetMovementComponent, FormsPageComponent } from './forms.component';
 
 const equipment: EquipmentEntry[] = [
   { id: '1', name: 'Laptop', serialNumber: 'S-1', assetTag: 'A-1', brand: 'Brand', model: 'Model', dateReceived: '2026-01-01', notes: '', createdAt: '', delivered: false, deliveredTo: null },
@@ -17,10 +17,17 @@ describe('Asset movement forms', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
-      imports: [AssetMovementComponent],
+      imports: [AssetMovementComponent, FormsPageComponent],
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     });
     TestBed.inject(Auth).user.set({ id: 'u', username: 'viewer', role: 'viewer', active: true });
+  });
+
+  it('shows equipment entry before asset movement on the forms page', () => {
+    const fixture = TestBed.createComponent(FormsPageComponent);
+    fixture.detectChanges();
+    const headings = [...fixture.nativeElement.querySelectorAll('.card h2')] as HTMLElement[];
+    expect(headings.map((heading) => heading.textContent?.trim())).toEqual(['Equipment entry', 'Asset movement']);
   });
 
   it('filters outbound serials, autofills and saves snapshots for multiple items', async () => {
@@ -42,6 +49,13 @@ describe('Asset movement forms', () => {
     component.selectSerial(component.assets[1], 'S-3');
     fixture.detectChanges();
     await fixture.whenStable();
+    const entry = fixture.nativeElement.querySelector('.movement-assets-entry') as HTMLTableElement;
+    expect([...entry.querySelectorAll('th')].map((cell) => cell.textContent?.trim())).toEqual(['Asset *', 'Asset tag', 'Serial number *', 'Model', 'Brand', '']);
+    const entryRows = fixture.nativeElement.querySelectorAll('.movement-assets-entry tbody tr') as NodeListOf<HTMLTableRowElement>;
+    expect(entryRows).toHaveLength(2);
+    expect(entryRows[0].cells[1].textContent?.trim()).toBe('A-1');
+    expect(entryRows[0].cells[2].querySelector('select')?.value).toBe('S-1');
+    expect(entryRows[1].cells[3].textContent?.trim()).toBe('M3');
     const form = fixture.debugElement.query(By.directive(NgForm)).injector.get(NgForm);
     component.save(form);
     const req = http.expectOne('/api/asset-movements');
@@ -51,8 +65,13 @@ describe('Asset movement forms', () => {
     http.expectOne('/api/asset-movements').flush([]);
     http.expectOne('/api/equipment-entries').flush(equipment);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('.movement-report').textContent).toContain('Brand');
-    expect(fixture.nativeElement.querySelector('.movement-report').textContent).toContain('M3');
+    const report = fixture.nativeElement.querySelector('.movement-assets-report') as HTMLTableElement;
+    expect([...report.querySelectorAll('th')].map((cell) => cell.textContent?.trim())).toEqual(['Asset', 'Asset tag', 'Serial number', 'Model', 'Brand']);
+    const rows = [...report.querySelectorAll<HTMLTableRowElement>('tbody tr')];
+    expect(rows.map((row) => [...row.cells].map((cell) => cell.textContent?.trim()))).toEqual([
+      ['Laptop', 'A-1', 'S-1', 'Model', 'Brand'],
+      ['Monitor', 'A-3', 'S-3', 'M3', 'Display'],
+    ]);
     http.verify();
   });
 

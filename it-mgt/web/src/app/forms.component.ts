@@ -11,14 +11,14 @@ import { Api, AssetMovement, AssetMovementDetails, Auth, BrandingService, Equipm
     <h1>Forms</h1>
     <p class="muted">Create and view forms for your organisation.</p>
     <div class="card">
-      <h2>Asset movement</h2>
-      <p>Record the movement of one or more assets and print a copy.</p>
-      <a routerLink="/forms/asset-movement">Open asset movement forms</a>
-    </div>
-    <div class="card">
       <h2>Equipment entry</h2>
       <p>Register equipment and track delivery using movement forms.</p>
       <a routerLink="/forms/equipment-entry">Open equipment entries</a>
+    </div>
+    <div class="card">
+      <h2>Asset movement</h2>
+      <p>Record the movement of one or more assets and print a copy.</p>
+      <a routerLink="/forms/asset-movement">Open asset movement forms</a>
     </div>
   `,
 })
@@ -44,23 +44,28 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
         <form class="card form" #movementForm="ngForm" (ngSubmit)="save(movementForm)">
           <h3>{{ editingId() ? 'Edit movement form' : 'New movement form' }}</h3>
           <h3>Assets</h3>
-          @for (asset of assets; track $index; let i = $index) {
-            <div class="movement-asset form">
-              <h3>Item {{ i + 1 }}</h3>
-              <label>Asset name * <select [name]="'assetName' + i" [ngModel]="asset.assetName" (ngModelChange)="changeName(asset, $event)" required>
-                <option value="">Select equipment</option>
-                @for (name of equipmentNames(asset); track name) { <option [value]="name">{{ name }}</option> }
-              </select></label>
-              <label>Serial number * <select [name]="'serialNumber' + i" [ngModel]="asset.serialNumber" (ngModelChange)="selectSerial(asset, $event)" [required]="!isLegacyWithoutSerial(asset)">
-                <option value="">{{ isLegacyWithoutSerial(asset) ? 'Not recorded (existing item)' : 'Select serial number' }}</option>
-                @for (serial of serialOptions(asset); track serial) { <option [value]="serial">{{ serial }}</option> }
-              </select></label>
-              <label>Asset tag <input [value]="asset.assetTag" readonly /></label>
-              <label>Brand <input [value]="asset.brand || ''" readonly /></label>
-              <label>Model <input [value]="asset.model || ''" readonly /></label>
-              @if (assets.length > 1) { <div><button type="button" class="sm" (click)="removeAsset(i)">Remove item {{ i + 1 }}</button></div> }
-            </div>
-          }
+          <div class="movement-assets-scroll">
+            <table class="movement-assets-entry">
+              <thead><tr><th>Asset *</th><th>Asset tag</th><th>Serial number *</th><th>Model</th><th>Brand</th><th></th></tr></thead>
+              <tbody>
+                @for (asset of assets; track $index; let i = $index) {
+                  <tr>
+                    <td><select [attr.aria-label]="'Asset for item ' + (i + 1)" [name]="'assetName' + i" [ngModel]="asset.assetName" (ngModelChange)="changeName(asset, $event)" required>
+                      <option value="">Select equipment</option>
+                      @for (name of equipmentNames(asset); track name) { <option [value]="name">{{ name }}</option> }
+                    </select></td>
+                    <td>{{ asset.assetTag || '—' }}</td>
+                    <td><select [attr.aria-label]="'Serial number for item ' + (i + 1)" [name]="'serialNumber' + i" [ngModel]="asset.serialNumber" (ngModelChange)="selectSerial(asset, $event)" [required]="!isLegacyWithoutSerial(asset)">
+                      <option value="">{{ isLegacyWithoutSerial(asset) ? 'Not recorded (existing item)' : 'Select serial number' }}</option>
+                      @for (serial of serialOptions(asset); track serial) { <option [value]="serial">{{ serial }}</option> }
+                    </select></td>
+                    <td>{{ asset.model || '—' }}</td><td>{{ asset.brand || '—' }}</td>
+                    <td>@if (assets.length > 1) { <button type="button" class="sm" (click)="removeAsset(i)">Remove item {{ i + 1 }}</button> }</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
           <div><button type="button" (click)="addAsset()">Add another item</button></div>
           <label>Person moving the assets * <input name="moverName" [(ngModel)]="draft.moverName" required maxlength="200" /></label>
           <label>Person's contact details <input name="moverContact" [(ngModel)]="draft.moverContact" maxlength="200" /></label>
@@ -112,15 +117,15 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
         <p><b>Movement date:</b> {{ movement.movementDate }}</p>
         <p><b>Direction:</b> {{ movement.direction === 'inbound' ? 'Inbound' : 'Outbound' }}</p>
         <h3>Asset details</h3>
-        @for (asset of movementAssets(movement); track $index; let i = $index) {
-          <section class="movement-report-asset">
-            <p><b>Item {{ i + 1 }}:</b> {{ asset.assetName }}</p>
-            <p><b>Asset tag:</b> {{ asset.assetTag || '—' }}</p>
-            <p><b>Serial number:</b> {{ asset.serialNumber || '—' }}</p>
-            <p><b>Brand:</b> {{ asset.brand || '—' }}</p>
-            <p><b>Model:</b> {{ asset.model || '—' }}</p>
-          </section>
-        }
+        <table class="movement-assets-report">
+          <thead><tr><th>Asset</th><th>Asset tag</th><th>Serial number</th><th>Model</th><th>Brand</th></tr></thead>
+          <tbody>
+            @for (asset of movementAssets(movement); track $index) {
+              <tr><td>{{ asset.assetName }}</td><td>{{ asset.assetTag || '—' }}</td><td>{{ asset.serialNumber || '—' }}</td>
+                <td>{{ asset.model || '—' }}</td><td>{{ asset.brand || '—' }}</td></tr>
+            }
+          </tbody>
+        </table>
         <h3>Person moving the assets</h3>
         <p><b>Name:</b> {{ movement.moverName }}</p>
         <p><b>Contact:</b> {{ movement.moverContact || '—' }}</p>

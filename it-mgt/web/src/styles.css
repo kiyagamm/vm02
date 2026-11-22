@@ -59,8 +59,13 @@ label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 14p
 .movement-header h2 { margin: 4px 0 0; }
 .movement-report h3 { margin-bottom: 6px; }
 .movement-report p { margin: 6px 0; overflow-wrap: anywhere; }
-.movement-asset { padding: 10px; border: 1px solid #b8bfcc; border-radius: 6px; }
-.movement-report-asset { break-inside: avoid; margin-bottom: 12px; }
+.movement-assets-scroll { overflow-x: auto; }
+.movement-assets-entry { min-width: 720px; }
+.movement-assets-entry th, .movement-assets-entry td { border: 1px solid #b8bfcc; }
+.movement-assets-entry select { width: 100%; }
+.movement-assets-report { table-layout: fixed; }
+.movement-assets-report th, .movement-assets-report td { border: 1px solid #b8bfcc; overflow-wrap: anywhere; }
+.movement-assets-report tr { break-inside: avoid; }
 .movement-notes { white-space: pre-wrap; }
 .movement-signatures { display: flex; flex-wrap: wrap; gap: 32px; margin-top: 40px; }
 @media print {
@@ -132,4 +137,7 @@ label.inline { display: inline-flex; flex-direction: row; align-items: center; g
   .card { overflow-wrap: anywhere; }
   .form input, .form select, .form textarea { min-width: 0; }
   table { display: block; overflow-x: auto; }
+}
+@media print {
+  .movement-assets-report { display: table; overflow: visible; }
 }
