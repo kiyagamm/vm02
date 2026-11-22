@@ -1,7 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { debounceTime, distinctUntilChanged, Subject, switchMap, of } from 'rxjs';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { debounceTime, distinctUntilChanged, filter, Subject, switchMap, of } from 'rxjs';
 import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from './api';
 
 @Component({
@@ -16,11 +17,14 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
               @if (plat.settings().logo; as logo) { <img class="brand-logo" [src]="logo" alt="" /> }
               {{ plat.settings().name }}
             </a>
-            <a routerLink="/platform" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Overview</a>
-            <a routerLink="/platform/organizations" routerLinkActive="active">Organisations</a>
-            <a routerLink="/platform/users" routerLinkActive="active">Users</a>
-            <span class="spacer"></span>
-            <a routerLink="/platform/settings" routerLinkActive="active">⚙ Platform settings</a>
+            <button type="button" class="nav-toggle" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-controls="main-navigation">Menu</button>
+            <div class="nav-links" id="main-navigation" [class.open]="menuOpen()">
+              <a routerLink="/platform" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Overview</a>
+              <a routerLink="/platform/organizations" routerLinkActive="active">Organisations</a>
+              <a routerLink="/platform/users" routerLinkActive="active">Users</a>
+              <span class="spacer"></span>
+              <a routerLink="/platform/settings" routerLinkActive="active">⚙ Platform settings</a>
+            </div>
           </nav>
           <div class="content">
             <header class="topbar no-print">
@@ -42,16 +46,19 @@ import { Api, Auth, BrandingService, PlatformService, SearchHit, Theme } from '.
           @if (brand.branding().logo; as logo) { <img class="brand-logo" [src]="logo" alt="" /> }
           {{ brand.branding().companyName || 'IT Management' }}
         </a>
-        <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Clients</a>
-        @if (auth.canAccessForms()) { <a routerLink="/forms" routerLinkActive="active">Forms</a> }
-        <a routerLink="/reports" routerLinkActive="active">Reports</a>
-        @if (auth.canWrite()) { <a routerLink="/snippets" routerLinkActive="active">Config snippets</a> }
-        @if (u.role === 'admin') {
-          <a routerLink="/audit" routerLinkActive="active">Audit log</a>
-          <a routerLink="/users" routerLinkActive="active">Users</a>
-        }
-        <span class="spacer"></span>
-        <a routerLink="/settings" routerLinkActive="active">⚙ Settings</a>
+        <button type="button" class="nav-toggle" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-controls="main-navigation">Menu</button>
+        <div class="nav-links" id="main-navigation" [class.open]="menuOpen()">
+          <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Clients</a>
+          @if (auth.canAccessForms()) { <a routerLink="/forms" routerLinkActive="active">Forms</a> }
+          <a routerLink="/reports" routerLinkActive="active">Reports</a>
+          @if (auth.canWrite()) { <a routerLink="/snippets" routerLinkActive="active">Config snippets</a> }
+          @if (u.role === 'admin') {
+            <a routerLink="/audit" routerLinkActive="active">Audit log</a>
+            <a routerLink="/users" routerLinkActive="active">Users</a>
+          }
+          <span class="spacer"></span>
+          <a routerLink="/settings" routerLinkActive="active">⚙ Settings</a>
+        </div>
       </nav>
       <div class="content">
         <header class="topbar no-print">
@@ -99,11 +106,14 @@ export class App {
   hits = signal<SearchHit[]>([]);
   q = '';
   searchOpen = signal(false);
+  menuOpen = signal(false);
   private query$ = new Subject<string>();
 
   constructor() {
     this.brand.load();
     this.plat.load();
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd), takeUntilDestroyed())
+      .subscribe(() => this.menuOpen.set(false));
     this.query$.pipe(
       debounceTime(250), distinctUntilChanged(),
       switchMap((q) => (q.trim().length >= 2 ? this.api.search(q) : of([] as SearchHit[]))),

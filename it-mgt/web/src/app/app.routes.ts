@@ -1,19 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, Routes } from '@angular/router';
 import { Auth } from './api';
-import { AuditComponent } from './audit.component';
-import { ClientDetailComponent } from './client-detail.component';
-import { DashboardComponent } from './dashboard.component';
 import { LoginComponent } from './login.component';
-import { OrganizationsComponent } from './organizations.component';
-import { PlatformOverviewComponent, PlatformSettingsComponent, PlatformUsersComponent } from './platform.component';
-import { SettingsComponent } from './settings.component';
-import { SignupComponent } from './signup.component';
-import { SnippetsComponent } from './snippets.component';
-import { UsersComponent } from './users.component';
-import { AssetMovementComponent, FormsPageComponent } from './forms.component';
-import { EquipmentEntryComponent } from './equipment-entry.component';
-import { ReportsComponent } from './reports.component';
 
 const loggedIn: CanActivateFn = () => {
   const a = inject(Auth);
@@ -27,20 +15,20 @@ const formsOnly: CanActivateFn = () => inject(Auth).canAccessForms() ? true : in
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'o/:slug', component: LoginComponent },
-  { path: 'signup', component: SignupComponent },
-  { path: '', component: DashboardComponent, canActivate: [loggedIn] },
-  { path: 'clients/:id', component: ClientDetailComponent, canActivate: [loggedIn] },
-  { path: 'audit', component: AuditComponent, canActivate: [loggedIn, adminOnly] },
-  { path: 'users', component: UsersComponent, canActivate: [loggedIn, adminOnly] },
-  { path: 'settings', component: SettingsComponent, canActivate: [loggedIn] },
-  { path: 'forms', component: FormsPageComponent, canActivate: [loggedIn, formsOnly] },
-  { path: 'forms/asset-movement', component: AssetMovementComponent, canActivate: [loggedIn, formsOnly] },
-  { path: 'forms/equipment-entry', component: EquipmentEntryComponent, canActivate: [loggedIn, formsOnly] },
-  { path: 'reports', component: ReportsComponent, canActivate: [loggedIn] },
-  { path: 'snippets', component: SnippetsComponent, canActivate: [loggedIn, writerOnly] },
-  { path: 'platform', component: PlatformOverviewComponent, canActivate: [platformOnly] },
-  { path: 'platform/organizations', component: OrganizationsComponent, canActivate: [platformOnly] },
-  { path: 'platform/users', component: PlatformUsersComponent, canActivate: [platformOnly] },
-  { path: 'platform/settings', component: PlatformSettingsComponent, canActivate: [platformOnly] },
+  { path: 'signup', loadComponent: () => import('./signup.component').then((m) => m.SignupComponent) },
+  { path: '', loadComponent: () => import('./dashboard.component').then((m) => m.DashboardComponent), canActivate: [loggedIn] },
+  { path: 'clients/:id', loadComponent: () => import('./client-detail.component').then((m) => m.ClientDetailComponent), canActivate: [loggedIn] },
+  { path: 'audit', loadComponent: () => import('./audit.component').then((m) => m.AuditComponent), canActivate: [loggedIn, adminOnly] },
+  { path: 'users', loadComponent: () => import('./users.component').then((m) => m.UsersComponent), canActivate: [loggedIn, adminOnly] },
+  { path: 'settings', loadComponent: () => import('./settings.component').then((m) => m.SettingsComponent), canActivate: [loggedIn] },
+  { path: 'forms', loadComponent: () => import('./forms.component').then((m) => m.FormsPageComponent), canActivate: [loggedIn, formsOnly] },
+  { path: 'forms/asset-movement', loadComponent: () => import('./forms.component').then((m) => m.AssetMovementComponent), canActivate: [loggedIn, formsOnly] },
+  { path: 'forms/equipment-entry', loadComponent: () => import('./equipment-entry.component').then((m) => m.EquipmentEntryComponent), canActivate: [loggedIn, formsOnly] },
+  { path: 'reports', loadComponent: () => import('./reports.component').then((m) => m.ReportsComponent), canActivate: [loggedIn] },
+  { path: 'snippets', loadComponent: () => import('./snippets.component').then((m) => m.SnippetsComponent), canActivate: [loggedIn, writerOnly] },
+  { path: 'platform', loadComponent: () => import('./platform.component').then((m) => m.PlatformOverviewComponent), canActivate: [platformOnly] },
+  { path: 'platform/organizations', loadComponent: () => import('./organizations.component').then((m) => m.OrganizationsComponent), canActivate: [platformOnly] },
+  { path: 'platform/users', loadComponent: () => import('./platform.component').then((m) => m.PlatformUsersComponent), canActivate: [platformOnly] },
+  { path: 'platform/settings', loadComponent: () => import('./platform.component').then((m) => m.PlatformSettingsComponent), canActivate: [platformOnly] },
   { path: '**', redirectTo: '' },
 ];

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { Api, Auth } from './api';
 import { App } from './app';
 import { routes } from './app.routes';
@@ -33,6 +33,30 @@ describe('web', () => {
     expect(auth.canAccessForms()).toBe(false);
     auth.user.set({ id: '3', username: 'a', role: 'admin', active: true });
     expect(auth.canAccessForms()).toBe(true);
+  });
+
+  it('opens the mobile menu and closes it after navigating to a lazy-loaded form', async () => {
+    TestBed.inject(Auth).user.set({ id: '1', username: 'viewer', role: 'viewer', active: true });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const toggle = fixture.nativeElement.querySelector('.nav-toggle') as HTMLButtonElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(fixture.nativeElement.querySelector('.nav-links.open')).not.toBeNull();
+    await TestBed.inject(Router).navigateByUrl('/forms');
+    fixture.detectChanges();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(fixture.nativeElement.querySelector('app-forms')?.textContent).toContain('Equipment entry');
+  });
+
+  it('keeps form access restricted after lazy loading', async () => {
+    TestBed.inject(Auth).user.set({ id: '1', username: 'engineer', role: 'engineer', active: true });
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    await TestBed.inject(Router).navigateByUrl('/forms/asset-movement');
+    expect(TestBed.inject(Router).url).toBe('/');
   });
 
   it('sends only allowed fields on update and nulls empty strings', () => {

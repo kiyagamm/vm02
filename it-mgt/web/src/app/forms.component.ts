@@ -44,6 +44,7 @@ const emptyAsset = (): MovementAsset => ({ assetName: '', assetTag: '', serialNu
         <form class="card form" #movementForm="ngForm" (ngSubmit)="save(movementForm)">
           <h3>{{ editingId() ? 'Edit movement form' : 'New movement form' }}</h3>
           <h3>Assets</h3>
+          <p class="movement-table-hint">Swipe across the table to see all asset details.</p>
           <div class="movement-assets-scroll">
             <table class="movement-assets-entry">
               <thead><tr><th>Asset *</th><th>Asset tag</th><th>Serial number</th><th>Model</th><th>Brand</th><th></th></tr></thead>

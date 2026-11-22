@@ -14,6 +14,8 @@ body { font-family: system-ui, sans-serif; margin: 0; background: #f4f5f7; color
 .topbar .search ul { top: 100%; left: auto; right: 0; width: 340px; }
 [data-theme=dark] .topbar { background: #151922; border-color: #2a3040; color: #e3e6ee; }
 nav.sidebar { display: flex; flex-direction: column; gap: 6px; align-items: stretch; width: 230px; flex-shrink: 0; box-sizing: border-box; padding: 16px 12px; background: #1d2433; color: #fff; position: sticky; top: 0; height: 100vh; }
+nav.sidebar .nav-links { display: flex; flex: 1; flex-direction: column; gap: 6px; }
+nav.sidebar .nav-toggle { display: none; }
 nav.sidebar a { color: #cfd8ff; text-decoration: none; padding: 8px 10px; border-radius: 6px; }
 nav.sidebar a:hover, nav.sidebar a.active { background: #2e3a56; color: #fff; }
 nav.sidebar .brand { font-weight: 700; color: #fff; font-size: 18px; margin-bottom: 10px; padding: 0 10px; text-align: center; display: block; }
@@ -59,6 +61,7 @@ label.check { flex-direction: row; align-items: center; gap: 6px; font-size: 14p
 .movement-header h2 { margin: 4px 0 0; }
 .movement-report h3 { margin-bottom: 6px; }
 .movement-report p { margin: 6px 0; overflow-wrap: anywhere; }
+.movement-table-hint { display: none; }
 .movement-assets-scroll { overflow-x: auto; }
 .movement-assets-entry { min-width: 720px; }
 .movement-assets-entry th, .movement-assets-entry td { border: 1px solid #b8bfcc; }
@@ -135,18 +138,35 @@ label.inline { display: inline-flex; flex-direction: row; align-items: center; g
 
 @media screen and (max-width: 700px) {
   .layout { flex-direction: column; }
-  nav.sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 10px 12px; }
-  nav.sidebar .brand { width: 100%; box-sizing: border-box; margin-bottom: 4px; }
-  nav.sidebar .brand-logo { margin: 0 auto 8px; }
+  nav.sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; }
+  nav.sidebar .brand { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; margin: 0; padding: 0; text-align: left; overflow-wrap: anywhere; }
+  nav.sidebar .brand-logo { flex-shrink: 0; max-width: 64px; max-height: 40px; margin: 0; }
+  nav.sidebar .nav-toggle { display: block; min-height: 40px; padding: 8px 14px; background: #2e3a56; }
+  nav.sidebar .nav-links { display: none; flex: 0 0 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  nav.sidebar .nav-links.open { display: grid; }
+  nav.sidebar .nav-links a { min-width: 0; padding: 10px; overflow-wrap: anywhere; }
   nav.sidebar .spacer { display: none; }
-  .topbar { flex-wrap: wrap; padding: 10px 16px; }
+  main { margin: 16px auto; padding: 0 12px; }
+  .topbar { flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 8px 14px; }
   .topbar .search { min-width: 0; }
-  .topbar .search input { width: min(260px, 65vw); }
-  .topbar .search ul { width: min(340px, calc(100vw - 32px)); }
-  .usermenu { min-width: 0; overflow-wrap: anywhere; }
-  .card { overflow-wrap: anywhere; }
-  .form input, .form select, .form textarea { min-width: 0; }
-  table { display: block; overflow-x: auto; }
+  .topbar .search input { width: min(220px, 48vw); }
+  .topbar .search ul { left: 0; right: auto; width: min(340px, calc(100vw - 28px)); }
+  .usermenu { flex: 1 1 0; min-width: 0; max-width: calc(100% - 52px); text-align: right; overflow-wrap: anywhere; }
+  .usermenu-pop { max-width: min(320px, calc(100vw - 28px)); }
+  .usermenu-pop button { white-space: normal; text-align: left; }
+  .card { min-width: 0; overflow-wrap: anywhere; }
+  .card.nested { margin-left: 8px; }
+  .body { padding-left: 8px; }
+  .form > *, .form input, .form select, .form textarea { min-width: 0; }
+  .form input, .form select, .form textarea { box-sizing: border-box; max-width: 100%; font-size: 16px; }
+  button.sm { min-height: 36px; }
+  table { display: block; max-width: 100%; overflow-x: auto; }
+  .movement-assets-entry { display: table; max-width: none; }
+  .movement-table-hint { display: block; grid-column: 1 / -1; margin: 0; color: #6b7385; font-size: 13px; }
+  [data-theme=dark] .movement-table-hint { color: #9aa3b8; }
+  .movement-header { gap: 10px; }
+  .movement-header img { max-width: 35%; }
+  .report { padding: 14px; }
 }
 @media print {
   .movement-assets-report { display: table; overflow: visible; }
